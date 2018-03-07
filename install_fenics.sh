@@ -27,7 +27,7 @@ cd tsfc && pip3 install -e . && cd ..
 cd COFFEE && pip3 install -e . && cd ..
 cd FInAT && pip3 install -e . && cd ..
 
-cd ..
+cd ~
 
 echo
 pip3 list
