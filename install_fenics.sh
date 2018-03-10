@@ -38,36 +38,32 @@ fi
 
 # Clone all required repositories
 cd "${SRC_DIR}"
-# git clone https://bitbucket.org/fenics-project/fiat.git
-# git clone https://bitbucket.org/fenics-project/ufl.git
-# git clone https://bitbucket.org/fenics-project/dijitso.git
-# git clone https://bitbucket.org/fenics-project/ffc.git
+git clone https://bitbucket.org/fenics-project/fiat.git
+git clone https://bitbucket.org/fenics-project/ufl.git
+git clone https://bitbucket.org/fenics-project/dijitso.git
+git clone https://bitbucket.org/fenics-project/ffc.git
 
-# git clone https://github.com/blechta/tsfc.git
-# git clone https://github.com/blechta/COFFEE.git
-# git clone https://github.com/blechta/FInAT.git
+git clone https://github.com/blechta/tsfc.git
+git clone https://github.com/blechta/COFFEE.git
+git clone https://github.com/blechta/FInAT.git
 
-# git clone https://bitbucket.org/fenics-project/dolfin.git
-# git clone https://github.com/pybind/pybind11.git
+git clone https://bitbucket.org/fenics-project/dolfin.git
+git clone https://github.com/pybind/pybind11.git
 
-cd "${SRC_DIR}"
+# Install python packages
+cd "${SRC_DIR}/fiat" && pip3 install -e .
+cd "${SRC_DIR}/ufl" && pip3 install -e .
+cd "${SRC_DIR}/dijitso" && pip3 install -e .
+cd "${SRC_DIR}/ffc" && pip3 install -e .
 
-cd fiat && pip3 install -e . && cd "${SRC_DIR}"
-cd ufl && pip3 install -e . && cd "${SRC_DIR}"
-cd dijitso && pip3 install -e . && cd "${SRC_DIR}"
-cd ffc && pip3 install -e . && cd "${SRC_DIR}"
-
-cd tsfc && pip3 install -e . && cd "${SRC_DIR}"
-cd COFFEE && pip3 install -e . && cd "${SRC_DIR}"
-cd FInAT && pip3 install -e . && cd "${SRC_DIR}"
+cd "${SRC_DIR}/tsfc" && pip3 install -e .
+cd "${SRC_DIR}/COFFEE" && pip3 install -e .
+cd "${SRC_DIR}/FInAT" && pip3 install -e .
 
 pip3 install six singledispatch pulp
 
-mkdir "${BUILD_DIR}"
-
-cd "${BUILD_DIR}"
-mkdir pybind11
-cd pybind11
+mkdir "${BUILD_DIR}/pybind11"
+cd "${BUILD_DIR}/pybind11"
 cmake -DPYBIND11_TEST=off -DCMAKE_INSTALL_PREFIX="${PYBIND_DIR}" "${SRC_DIR}/pybind11"
 if ! make install
 then
@@ -75,9 +71,8 @@ then
 	exit 1
 fi
 
-cd "${BUILD_DIR}"
-mkdir dolfin
-cd dolfin
+mkdir "${BUILD_DIR}/dolfin"
+cd "${BUILD_DIR}/dolfin"
 cmake -DCMAKE_INSTALL_PREFIX="${DOLFIN_DIR}" "${SRC_DIR}/dolfin"
 make -j4
 if ! make install
