@@ -17,13 +17,14 @@ PYBIND_DIR="${FENICS_DIR}/include/pybind11"
 DOLFIN_DIR="${FENICS_DIR}/dolfin"
 
 # Try to create directory for fenics
-if ! mkdir "${FENICS_DIR}"
+mkdir -p "${SRC_DIR}"
+if ! cd "${SRC_DIR}"
 then
-	echo "Could not create directory ${FENICS_DIR}!"
-	#exit 1
-else
-	mkdir "${SRC_DIR}"
+	echo "Could not create directory ${SRC_DIR}!"
+	exit 1
 fi
+
+exit 0
 
 # Try to create virtual environment and check if successful
 cd "${FENICS_DIR}"
@@ -62,6 +63,8 @@ cd "${SRC_DIR}/FInAT" && pip3 install -e .
 
 pip3 install six singledispatch pulp
 
+mkdir "${BUILD_DIR}"
+
 mkdir "${BUILD_DIR}/pybind11"
 cd "${BUILD_DIR}/pybind11"
 cmake -DPYBIND11_TEST=off -DCMAKE_INSTALL_PREFIX="${PYBIND_DIR}" "${SRC_DIR}/pybind11"
@@ -74,13 +77,12 @@ fi
 mkdir "${BUILD_DIR}/dolfin"
 cd "${BUILD_DIR}/dolfin"
 cmake -DCMAKE_INSTALL_PREFIX="${DOLFIN_DIR}" "${SRC_DIR}/dolfin"
-make -j4
-if ! make install
+if ! (make -j4 && make install)
 then
-	echo "Error when installing dolfin!"
+	echo "Error while building dolfin!"
+	exit 1
 fi
 
-# TODO: The following is not working, because of paths!
 cd "${SRC_DIR}/dolfin/python"
 export PYBIND11_DIR="${PYBIND_DIR}"
 export DOLFIN_DIR="${DOLFIN_DIR}"
@@ -90,5 +92,5 @@ echo
 pip3 list
 
 echo
-echo "Activate fenics virtualenv using 'source ${FENICS_DIR}/fenics_env/bin/activate'"
-echo "Activate dolfin build environmrnt using 'source ${FENICS_DIR}/dolfin/share/dolfin/dolfin.conf'"
+echo "Activate FEniCS python virtualenv using 'source ${FENICS_DIR}/fenics_env/bin/activate'"
+echo "Activate DOLFIN build environmrnt using 'source ${FENICS_DIR}/dolfin/share/dolfin/dolfin.conf'"
