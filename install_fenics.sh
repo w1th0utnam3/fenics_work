@@ -95,4 +95,5 @@ echo
 pip3 list
 
 echo
-echo "Activate the virtualenv using 'source fenics_env/bin/activate'"
+echo "Activate fenics virtualenv using 'source ${FENICS_DIR}/fenics_env/bin/activate'"
+echo "Activate dolfin build environmrnt using 'source ${FENICS_DIR}/dolfin/share/dolfin/dolfin.conf'"
