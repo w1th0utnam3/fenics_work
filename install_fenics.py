@@ -1,10 +1,10 @@
 import os
 import argparse
-import virtualenv
 import subprocess
+import pip
+import virtualenv
 
-def clone_repos(src_directory: str):
-	repos = [
+REPOS = [
 		"https://bitbucket.org/fenics-project/fiat.git",
 		"https://bitbucket.org/fenics-project/ufl.git",
 		"https://bitbucket.org/fenics-project/dijitso.git",
@@ -14,21 +14,42 @@ def clone_repos(src_directory: str):
 		"https://github.com/blechta/FInAT.git",
 		"https://bitbucket.org/fenics-project/dolfin.git",
 		"https://github.com/pybind/pybind11.git"
-		]
+	]
 
-	for repo in repos:
+PIP_INSTALLS = [
+	"fiat",
+	"ufl",
+	"dijitso",
+	"ffc",
+	"tsfc",
+	"COFFEE",
+	"FInAT",
+	"six",
+	"singledispatch",
+	"pulp"
+]
+
+def clone_repos(src_directory: str):
+	for repo in REPOS:
 		process = subprocess.Popen(["git", "clone", repo], stdout=subprocess.PIPE, cwd=src_directory)
 		while True:
 			output = process.stdout.readline()
 			if len(output.strip()) == 0 and process.poll() is not None:
-				print()
+				print("")
 				break
 			if output:
 				print(str(output.strip()))
 
-	pass
+	print("")
 
-def pip_install():
+def pip_install(src_directory: str):
+	for pkg in PIP_INSTALLS:
+		pkg_path = os.path.join(src_directory, pkg)
+		pip.main(["install", "-e", f"{pkg_path}"])
+		print("")
+
+	print("")
+
 	"""
 	cd "${SRC_DIR}/fiat" && pip3 install -e .
 	cd "${SRC_DIR}/ufl" && pip3 install -e .
@@ -47,8 +68,6 @@ def pip_install():
 	pip.main(["install", "--prefix", venv_dir, "xmltodict"])
 	import xmltodict
 	"""
-
-	pass
 
 def pybind_build():
 	"""
@@ -109,7 +128,7 @@ if SRC_DIR is None:
 	SRC_DIR = os.path.join(FENICS_DIR, "src")
 
 print(args)
-print()
+print("")
 
 VENV_DIR = os.path.join(FENICS_DIR, "fenics_env")
 BUILD_DIR = os.path.join(FENICS_DIR, "build")
@@ -117,7 +136,7 @@ PYBIND_DIR = os.path.join(FENICS_DIR, "include", "pybind11")
 DOLFIN_DIR = os.path.join(FENICS_DIR, "dolfin")
 
 if args.clone_only is True:
-	print("Only cloning repos...")
+	print("Only cloning repositories...")
 	print()
 
 	if not os.path.exists(SRC_DIR):
@@ -136,12 +155,14 @@ else:
 	exec(open(os.path.join(VENV_DIR, "bin", "activate_this.py")).read())
 
 	clone_repos(SRC_DIR)
-	pip_install()
+	pip_install(SRC_DIR)
 
 	pybind_build()
 	dolfin_build()
 
-	#print(pip.main(["list"]))
+	print("")
+	print("Installed packages in virtual environment:")
+	print(pip.main(["list", "--format=columns"]))
 
 	#pip3 list
 
