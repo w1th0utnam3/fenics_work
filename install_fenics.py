@@ -1,8 +1,8 @@
 import os
+import sys
+import pip
 import argparse
 import subprocess
-import pip
-import virtualenv
 
 REPOS = [
 		"https://bitbucket.org/fenics-project/fiat.git",
@@ -23,81 +23,85 @@ PIP_INSTALLS = [
 	"ffc",
 	"tsfc",
 	"COFFEE",
-	"FInAT",
-	"six",
-	"singledispatch",
-	"pulp"
+	"FInAT"
 ]
+
+def print_stdout(args, raise_on_nonzero=False, **kwargs):
+	sys.stdout.flush()
+	kwargs["stdout"] = subprocess.PIPE
+	process = subprocess.Popen(args, **kwargs)
+	while True:
+		output = process.stdout.readline()
+		if len(output.strip()) == 0 and process.poll() is not None:
+			break
+		if output:
+			print(output.strip().decode())
+
+	rc = process.poll()
+	sys.stdout.flush()
+
+	if raise_on_nonzero and rc != 0:
+		raise RuntimeError(f"Subprocess {args[0]} did not terminate successfully.")
+
+	return process.poll()
 
 def clone_repos(src_directory: str):
 	for repo in REPOS:
-		process = subprocess.Popen(["git", "clone", repo], stdout=subprocess.PIPE, cwd=src_directory)
-		while True:
-			output = process.stdout.readline()
-			if len(output.strip()) == 0 and process.poll() is not None:
-				print("")
-				break
-			if output:
-				print(str(output.strip()))
+		print_stdout(["git", "clone", repo], cwd=src_directory)
+		print("")
 
-	print("")
+	return 0
 
-def pip_install(src_directory: str):
+def pip_install(src_dir: str):
 	for pkg in PIP_INSTALLS:
-		pkg_path = os.path.join(src_directory, pkg)
+		pkg_path = os.path.join(src_dir, pkg)
 		pip.main(["install", "-e", f"{pkg_path}"])
 		print("")
 
-	print("")
-
-	"""
-	cd "${SRC_DIR}/fiat" && pip3 install -e .
-	cd "${SRC_DIR}/ufl" && pip3 install -e .
-	cd "${SRC_DIR}/dijitso" && pip3 install -e .
-	cd "${SRC_DIR}/ffc" && pip3 install -e .
-
-	cd "${SRC_DIR}/tsfc" && pip3 install -e .
-	cd "${SRC_DIR}/COFFEE" && pip3 install -e .
-	cd "${SRC_DIR}/FInAT" && pip3 install -e .
-
-	pip3 install six singledispatch pulp
-	"""
-
-	"""
-	# pip install a package using the venv as a prefix
-	pip.main(["install", "--prefix", venv_dir, "xmltodict"])
-	import xmltodict
-	"""
-
-def pybind_build():
-	"""
-	mkdir -p "${BUILD_DIR}/pybind11"
-	cd "${BUILD_DIR}/pybind11"
-
-	cmake -DPYBIND11_TEST=off -DCMAKE_INSTALL_PREFIX="${PYBIND_DIR}" "${SRC_DIR}/pybind11"
-	if ! make install
-	then
-		echo "Error when installing pybind11!"
-		return 1
-	fi
+	for pkg in ["six", "singledispatch", "pulp"]:
+		pip.main(["install", pkg])
+		print("")
 
 	return 0
-	"""
 
-	pass
+def pybind_build(src_dir: str, build_dir: str, pybind_dir: str):
+	pybind_build_path = os.path.join(build_dir, "pybind11")
+	os.makedirs(pybind_build_path, exist_ok=True)
 
-def dolfin_build():
-	"""
-	mkdir "${BUILD_DIR}/dolfin"
-	cd "${BUILD_DIR}/dolfin"
+	print_stdout(["cmake", "-DPYBIND11_TEST=off", 
+		f"-DCMAKE_INSTALL_PREFIX={pybind_dir}",
+		f"{src_dir}/pybind11"],
+		cwd=pybind_build_path)
+	print("")
 
-	cmake -DCMAKE_INSTALL_PREFIX="${DOLFIN_DIR}" "${SRC_DIR}/dolfin"
-	if ! (make -j4 && make install)
-	then
-		echo "Error while building dolfin!"
+	make_return = print_stdout(["make", "install"], cwd=pybind_build_path)
+	print("")
+
+	if make_return != 0:
+		print("pybind make install did not return successfully!")
 		return 1
-	fi
 
+	return 0
+
+def dolfin_build(src_dir: str, build_dir: str, dolfin_dir: str):
+	dolfin_build_path = os.path.join(build_dir, "dolfin")
+	os.makedirs(dolfin_build_path, exist_ok=True)
+	
+	try:
+		print_stdout(["cmake",
+			f"-DCMAKE_INSTALL_PREFIX={dolfin_dir}",
+			f"{src_dir}/dolfin"],
+			raise_on_nonzero=True,
+			cwd=dolfin_build_path
+		)
+
+		print_stdout(["make", "j4"], raise_on_nonzero=True, cwd=dolfin_build_path)
+		print_stdout(["make", "install"], raise_on_nonzero=True, cwd=dolfin_build_path)
+	except RuntimeError as err:
+		print(err)
+		return 1
+
+	"""
 	cd "${SRC_DIR}/dolfin/python"
 	export PYBIND11_DIR="${PYBIND_DIR}"
 	export DOLFIN_DIR="${DOLFIN_DIR}"
@@ -106,66 +110,85 @@ def dolfin_build():
 	return 0
 	"""
 
-	pass
+	return 0
 
-parser = argparse.ArgumentParser(description="install and set up an environment for FEniCS from git")
-parser.add_argument("-r", "--repo-dir", type=str, help="Directory where source directories (repositories) will be stored.")
-group = parser.add_mutually_exclusive_group()
-group.add_argument("-l", "--local", action="store_true", help="Don't clone any repositories, use local files.")
-group.add_argument("-co", "--clone-only", action="store_true", help="Only clone the required repositories, no install/build.")
-#group.add_argument("-dr", "--dolfin-rebuild-only", action="store_true", help="only perform a dolfin rebuild/update")
-parser.add_argument("install_prefix", type=str, help="FEniCS will be installed into this folder. If not specified, the current folder will be used.", nargs='?')
-args = parser.parse_args()
+def main():
+	parser = argparse.ArgumentParser(description="install and set up an environment for FEniCS from git")
+	parser.add_argument("-r", "--repo-dir", type=str, help="Directory where source directories (repositories) will be stored.")
+	group = parser.add_mutually_exclusive_group()
+	group.add_argument("-l", "--local", action="store_true", help="Don't clone any repositories, use local files.")
+	group.add_argument("-co", "--clone-only", action="store_true", help="Only clone the required repositories, no install/build.")
+	parser.add_argument("install_prefix", type=str, help="FEniCS will be installed into this folder. If not specified, the current folder will be used.", nargs='?')
+	group2 = parser.add_mutually_exclusive_group()
+	group2.add_argument("--internal-stage-one", action="store_true")
+	group2.add_argument("--internal-stage-two", action="store_true")
 
-FENICS_DIR = args.install_prefix
-SRC_DIR = args.repo_dir
-BUILD_DIR = None
+	args = parser.parse_args()
 
-if FENICS_DIR is None:
-	FENICS_DIR = os.getcwd()
+	FENICS_DIR = args.install_prefix
+	SRC_DIR = args.repo_dir
+	BUILD_DIR = None
 
-if SRC_DIR is None:
-	SRC_DIR = os.path.join(FENICS_DIR, "src")
+	if FENICS_DIR is None:
+		FENICS_DIR = os.getcwd()
 
-print(args)
-print("")
+	if SRC_DIR is None:
+		SRC_DIR = os.path.join(FENICS_DIR, "src")
 
-VENV_DIR = os.path.join(FENICS_DIR, "fenics_env")
-BUILD_DIR = os.path.join(FENICS_DIR, "build")
-PYBIND_DIR = os.path.join(FENICS_DIR, "include", "pybind11")
-DOLFIN_DIR = os.path.join(FENICS_DIR, "dolfin")
-
-if args.clone_only is True:
-	print("Only cloning repositories...")
-	print()
-
-	if not os.path.exists(SRC_DIR):
-		os.makedirs(SRC_DIR)
-
-	clone_repos(SRC_DIR)
-else:
-	if not os.path.exists(FENICS_DIR):
-		os.makedirs(FENICS_DIR)
-
-	if not os.path.exists(SRC_DIR):
-		os.makedirs(SRC_DIR)
-
-	# Create and activate the virtual environment
-	virtualenv.create_environment(VENV_DIR)
-	exec(open(os.path.join(VENV_DIR, "bin", "activate_this.py")).read())
-
-	clone_repos(SRC_DIR)
-	pip_install(SRC_DIR)
-
-	pybind_build()
-	dolfin_build()
-
+	print(args)
 	print("")
-	print("Installed packages in virtual environment:")
-	print(pip.main(["list", "--format=columns"]))
 
-	#pip3 list
+	VENV_DIR = os.path.join(FENICS_DIR, "fenics_env")
+	BUILD_DIR = os.path.join(FENICS_DIR, "build")
+	PYBIND_DIR = os.path.join(FENICS_DIR, "include", "pybind11")
+	DOLFIN_DIR = os.path.join(FENICS_DIR, "dolfin")
 
+	print(sys.argv)
 	print("")
-	print(f"Activate FEniCS python virtualenv using 'source {FENICS_DIR}/fenics_env/bin/activate'")
-	print(f"Activate DOLFIN build environment using 'source ${FENICS_DIR}/dolfin/share/dolfin/dolfin.conf'")
+
+	if args.clone_only is True:
+		print("Only cloning repositories...")
+		print()
+
+		os.makedirs(SRC_DIR, exist_ok=True)
+		clone_repos(SRC_DIR)
+		return
+
+	if args.internal_stage_one is False and args.internal_stage_two is False:
+		os.makedirs(FENICS_DIR, exist_ok=True)
+		os.makedirs(SRC_DIR, exist_ok=True)
+
+		clone_repos(SRC_DIR)
+
+		# Create a virtual environment
+		import virtualenv
+		virtualenv.create_environment(VENV_DIR)
+		print("Switching to virtual environment...")
+
+		print("Stage 1")
+		print_stdout([os.path.join(VENV_DIR, "bin", "python3"), os.path.basename(sys.argv[0]), "--internal-stage-one", *sys.argv[1:]], cwd=os.getcwd())
+
+		print("Stage 2")
+		print_stdout([os.path.join(VENV_DIR, "bin", "python3"), os.path.basename(sys.argv[0]), "--internal-stage-two", *sys.argv[1:]], cwd=os.getcwd())
+		return
+
+	elif args.internal_stage_one is True:
+		pip_install(SRC_DIR)
+		return
+
+	elif args.internal_stage_two is True:
+		pybind_build(SRC_DIR, BUILD_DIR, PYBIND_DIR)
+		print("")
+		dolfin_build(SRC_DIR, BUILD_DIR, DOLFIN_DIR)
+
+		print("")
+		print("Installed packages in virtual environment:")
+		pip.main(["list", "--format=columns"])
+
+		print("")
+		print(f"Activate FEniCS python virtualenv using 'source {FENICS_DIR}/fenics_env/bin/activate'")
+		print(f"Activate DOLFIN build environment using 'source {FENICS_DIR}/dolfin/share/dolfin/dolfin.conf'")
+		return
+	
+if __name__ == '__main__':
+	main()
