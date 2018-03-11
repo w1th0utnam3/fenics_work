@@ -50,3 +50,7 @@ DOLFIN may make use of the following optional packages:
  * CHOLMOD, Sparse Cholesky factorization library for sparse matrices, <http://faculty.cse.tamu.edu/davis/suitesparse.html>
  * HDF5, Hierarchical Data Format 5 (HDF5), <https://www.hdfgroup.org/HDF5>
  * ZLIB, Compression library, <http://www.zlib.net>
+They can be installed using:
+```
+sudo apt install zlib1g-dev libhdf5-dev petsc-dev slepc-dev
+```
