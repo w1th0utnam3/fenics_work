@@ -24,8 +24,6 @@ then
 	exit 1
 fi
 
-exit 0
-
 # Try to create virtual environment and check if successful
 cd "${FENICS_DIR}"
 if ! virtualenv fenics_env
