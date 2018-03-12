@@ -28,7 +28,9 @@ PIP_INSTALLS = [
 
 def print_stdout(args, raise_on_nonzero=False, **kwargs):
 	sys.stdout.flush()
+	kwargs["bufsize"] = 1
 	kwargs["stdout"] = subprocess.PIPE
+	kwargs["stderr"] = subprocess.STDOUT
 	process = subprocess.Popen(args, **kwargs)
 	while True:
 		output = process.stdout.readline()
@@ -36,6 +38,7 @@ def print_stdout(args, raise_on_nonzero=False, **kwargs):
 			break
 		if output:
 			print(output.strip().decode())
+			sys.stdout.flush()
 
 	rc = process.poll()
 	sys.stdout.flush()
@@ -83,32 +86,42 @@ def pybind_build(src_dir: str, build_dir: str, pybind_dir: str):
 
 	return 0
 
-def dolfin_build(src_dir: str, build_dir: str, dolfin_dir: str):
+def dolfin_build(src_dir: str, build_dir: str, venv_dir: str, dolfin_dir: str, pybind_dir: str):
 	dolfin_build_path = os.path.join(build_dir, "dolfin")
 	os.makedirs(dolfin_build_path, exist_ok=True)
 	
 	try:
-		print_stdout(["cmake",
-			f"-DCMAKE_INSTALL_PREFIX={dolfin_dir}",
-			f"{src_dir}/dolfin"],
+		print("Running CMake...")
+		activate_file = os.path.join(venv_dir, "bin", "activate")
+		print_stdout([f". {activate_file} && cmake -DCMAKE_INSTALL_PREFIX={dolfin_dir} {src_dir}/dolfin"],
 			raise_on_nonzero=True,
-			cwd=dolfin_build_path
+			cwd=dolfin_build_path,
+			shell=True
 		)
+		print("DOLFIN CMake was successful.")
 
-		print_stdout(["make", "j4"], raise_on_nonzero=True, cwd=dolfin_build_path)
+		print("Running make...")
+		print_stdout(["make", "-j4"], raise_on_nonzero=True, cwd=dolfin_build_path)
+		print("DOLFIN make was successful.")
+		print("Running make install...")
 		print_stdout(["make", "install"], raise_on_nonzero=True, cwd=dolfin_build_path)
+		print("DOLFIN make install was successful.")
+
+		print("")
+		print("Installing DOLFIN Python package...")
+		environment = os.environ.copy()
+		environment["PYBIND11_DIR"] = pybind_dir
+		environment["DOLFIN_DIR"] = dolfin_dir
+		print_stdout([os.path.join(venv_dir, "bin", "pip3"), "install", "-e", "."], 
+			raise_on_nonzero=True, 
+			cwd=os.path.join(src_dir, "dolfin", "python"),
+			env=environment
+		)
+		print("Installing DOLFIN Python was successful.")
+
 	except RuntimeError as err:
 		print(err)
 		return 1
-
-	"""
-	cd "${SRC_DIR}/dolfin/python"
-	export PYBIND11_DIR="${PYBIND_DIR}"
-	export DOLFIN_DIR="${DOLFIN_DIR}"
-	pip3 install -e .
-
-	return 0
-	"""
 
 	return 0
 
@@ -158,7 +171,7 @@ def main():
 		os.makedirs(FENICS_DIR, exist_ok=True)
 		os.makedirs(SRC_DIR, exist_ok=True)
 
-		clone_repos(SRC_DIR)
+		#clone_repos(SRC_DIR)
 
 		# Create a virtual environment
 		import virtualenv
@@ -179,7 +192,7 @@ def main():
 	elif args.internal_stage_two is True:
 		pybind_build(SRC_DIR, BUILD_DIR, PYBIND_DIR)
 		print("")
-		dolfin_build(SRC_DIR, BUILD_DIR, DOLFIN_DIR)
+		dolfin_build(SRC_DIR, BUILD_DIR, VENV_DIR, DOLFIN_DIR, PYBIND_DIR)
 
 		print("")
 		print("Installed packages in virtual environment:")
