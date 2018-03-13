@@ -30,7 +30,7 @@ def print_stdout(args, raise_on_nonzero=False, **kwargs):
 	sys.stdout.flush()
 	kwargs["bufsize"] = 1
 	kwargs["stdout"] = subprocess.PIPE
-	kwargs["stderr"] = subprocess.STDOUT
+	#kwargs["stderr"] = subprocess.STDOUT
 	process = subprocess.Popen(args, **kwargs)
 	while True:
 		output = process.stdout.readline()
@@ -128,6 +128,7 @@ def dolfin_build(src_dir: str, build_dir: str, venv_dir: str, dolfin_dir: str, p
 def main():
 	parser = argparse.ArgumentParser(description="install and set up an environment for FEniCS from git")
 	parser.add_argument("-r", "--repo-dir", type=str, help="Directory where source directories (repositories) will be stored.")
+	parser.add_argument("-y", "--yes", action="store_true", help="Respond with 'yes' to all confirmation messages.")
 	group = parser.add_mutually_exclusive_group()
 	group.add_argument("-l", "--local", action="store_true", help="Don't clone any repositories, use local files.")
 	group.add_argument("-co", "--clone-only", action="store_true", help="Only clone the required repositories, no install/build.")
@@ -148,18 +149,21 @@ def main():
 	if SRC_DIR is None:
 		SRC_DIR = os.path.join(FENICS_DIR, "src")
 
-	print(args)
-	print("")
-
 	VENV_DIR = os.path.join(FENICS_DIR, "fenics_env")
 	BUILD_DIR = os.path.join(FENICS_DIR, "build")
 	PYBIND_DIR = os.path.join(FENICS_DIR, "include", "pybind11")
 	DOLFIN_DIR = os.path.join(FENICS_DIR, "dolfin")
 
-	print(sys.argv)
-	print("")
+	if args.internal_stage_one is False and args.internal_stage_two is False:
+		import click
 
 	if args.clone_only is True:
+		if not args.yes:
+			try:
+				click.confirm(f"Continue cloning repositories into {SRC_DIR}?", abort=True)
+			except click.exceptions.Abort:
+				return
+
 		print("Only cloning repositories...")
 		print()
 
@@ -168,21 +172,28 @@ def main():
 		return
 
 	if args.internal_stage_one is False and args.internal_stage_two is False:
+		if not args.yes:
+			try:
+				click.confirm(f"Install FEniCS into {FENICS_DIR}?", abort=True)
+			except click.exceptions.Abort:
+				return
+
 		os.makedirs(FENICS_DIR, exist_ok=True)
 		os.makedirs(SRC_DIR, exist_ok=True)
 
-		#clone_repos(SRC_DIR)
+		clone_repos(SRC_DIR)
 
 		# Create a virtual environment
 		import virtualenv
 		virtualenv.create_environment(VENV_DIR)
 		print("Switching to virtual environment...")
+		print("")
 
-		print("Stage 1")
 		print_stdout([os.path.join(VENV_DIR, "bin", "python3"), os.path.basename(sys.argv[0]), "--internal-stage-one", *sys.argv[1:]], cwd=os.getcwd())
-
-		print("Stage 2")
+		print("")
 		print_stdout([os.path.join(VENV_DIR, "bin", "python3"), os.path.basename(sys.argv[0]), "--internal-stage-two", *sys.argv[1:]], cwd=os.getcwd())
+		print("")
+		print("Done.")
 		return
 
 	elif args.internal_stage_one is True:
