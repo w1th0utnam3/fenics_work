@@ -49,6 +49,8 @@ def print_stdout(args, raise_on_nonzero=False, **kwargs):
 	return process.poll()
 
 def clone_repos(src_directory: str):
+	print("Starting to clone all git repositories...")
+	print("")
 	for repo in REPOS:
 		print_stdout(["git", "clone", repo], cwd=src_directory)
 		print("")
@@ -56,6 +58,7 @@ def clone_repos(src_directory: str):
 	return 0
 
 def pip_install(src_dir: str):
+	print("Insalling python packages from repositories...")
 	for pkg in PIP_INSTALLS:
 		pkg_path = os.path.join(src_dir, pkg)
 		pip.main(["install", "-e", f"{pkg_path}"])
@@ -86,7 +89,7 @@ def pybind_build(src_dir: str, build_dir: str, pybind_dir: str):
 
 	return 0
 
-def dolfin_build(src_dir: str, build_dir: str, venv_dir: str, dolfin_dir: str, pybind_dir: str):
+def dolfin_build(src_dir: str, build_dir: str, venv_dir: str, dolfin_dir: str, pybind_dir: str, jobs: int):
 	dolfin_build_path = os.path.join(build_dir, "dolfin")
 	os.makedirs(dolfin_build_path, exist_ok=True)
 	
@@ -101,7 +104,7 @@ def dolfin_build(src_dir: str, build_dir: str, venv_dir: str, dolfin_dir: str, p
 		print("DOLFIN CMake was successful.")
 
 		print("Running make...")
-		print_stdout(["make", "-j4"], raise_on_nonzero=True, cwd=dolfin_build_path)
+		print_stdout(["make", f"-j{jobs}"], raise_on_nonzero=True, cwd=dolfin_build_path)
 		print("DOLFIN make was successful.")
 		print("Running make install...")
 		print_stdout(["make", "install"], raise_on_nonzero=True, cwd=dolfin_build_path)
@@ -127,17 +130,19 @@ def dolfin_build(src_dir: str, build_dir: str, venv_dir: str, dolfin_dir: str, p
 
 def main():
 	parser = argparse.ArgumentParser(description="install and set up an environment for FEniCS from git")
-	parser.add_argument("-r", "--repo-dir", type=str, help="Directory where source directories (repositories) will be stored.")
+	parser.add_argument("-r", "--repo-dir", type=str, help="Directory where source directories (repositories) will be stored/are already located.")
 	parser.add_argument("-y", "--yes", action="store_true", help="Respond with 'yes' to all confirmation messages.")
 	group = parser.add_mutually_exclusive_group()
 	group.add_argument("-l", "--local", action="store_true", help="Don't clone any repositories, use local files.")
 	group.add_argument("-co", "--clone-only", action="store_true", help="Only clone the required repositories, no install/build.")
+	parser.add_argument("--internal-stage", type=int, help=argparse.SUPPRESS)
+	parser.add_argument("-j", "--jobs", type=int, default=os.cpu_count(), help="Number of make jobs to issue for building DOLFIN ('-j' parameter for make). Default is to use 'os.cpu_count()'.")
 	parser.add_argument("install_prefix", type=str, help="FEniCS will be installed into this folder. If not specified, the current folder will be used.", nargs='?')
-	group2 = parser.add_mutually_exclusive_group()
-	group2.add_argument("--internal-stage-one", action="store_true")
-	group2.add_argument("--internal-stage-two", action="store_true")
 
 	args = parser.parse_args()
+
+	if args.internal_stage is None:
+		import click
 
 	FENICS_DIR = args.install_prefix
 	SRC_DIR = args.repo_dir
@@ -154,9 +159,7 @@ def main():
 	PYBIND_DIR = os.path.join(FENICS_DIR, "include", "pybind11")
 	DOLFIN_DIR = os.path.join(FENICS_DIR, "dolfin")
 
-	if args.internal_stage_one is False and args.internal_stage_two is False:
-		import click
-
+	# The clone only branch
 	if args.clone_only is True:
 		if not args.yes:
 			try:
@@ -171,17 +174,21 @@ def main():
 		clone_repos(SRC_DIR)
 		return
 
-	if args.internal_stage_one is False and args.internal_stage_two is False:
+	# The default install branch
+	if args.internal_stage is None:
 		if not args.yes:
 			try:
 				click.confirm(f"Install FEniCS into {FENICS_DIR}?", abort=True)
+				print("")
 			except click.exceptions.Abort:
 				return
 
 		os.makedirs(FENICS_DIR, exist_ok=True)
 		os.makedirs(SRC_DIR, exist_ok=True)
 
-		clone_repos(SRC_DIR)
+		# Don't clone if it was specified to use local repos
+		if not args.local:
+			clone_repos(SRC_DIR)
 
 		# Create a virtual environment
 		import virtualenv
@@ -189,23 +196,28 @@ def main():
 		print("Switching to virtual environment...")
 		print("")
 
-		print_stdout([os.path.join(VENV_DIR, "bin", "python3"), os.path.basename(sys.argv[0]), "--internal-stage-one", *sys.argv[1:]], cwd=os.getcwd())
+		print_stdout([os.path.join(VENV_DIR, "bin", "python3"), os.path.basename(sys.argv[0]), "--internal-stage", "1", *sys.argv[1:]], cwd=os.getcwd())
 		print("")
-		print_stdout([os.path.join(VENV_DIR, "bin", "python3"), os.path.basename(sys.argv[0]), "--internal-stage-two", *sys.argv[1:]], cwd=os.getcwd())
+		print_stdout([os.path.join(VENV_DIR, "bin", "python3"), os.path.basename(sys.argv[0]), "--internal-stage", "2", *sys.argv[1:]], cwd=os.getcwd())
+		print("")
+		print_stdout([os.path.join(VENV_DIR, "bin", "python3"), os.path.basename(sys.argv[0]), "--internal-stage", "3", *sys.argv[1:]], cwd=os.getcwd())
 		print("")
 		print("Done.")
 		return
 
-	elif args.internal_stage_one is True:
+	# The second stage of the installation: running from virtualenv, install packages
+	elif args.internal_stage == 1:
 		pip_install(SRC_DIR)
 		return
 
-	elif args.internal_stage_two is True:
+	# The third stage of the installation: build DOLFIN
+	elif args.internal_stage == 2:
 		pybind_build(SRC_DIR, BUILD_DIR, PYBIND_DIR)
 		print("")
-		dolfin_build(SRC_DIR, BUILD_DIR, VENV_DIR, DOLFIN_DIR, PYBIND_DIR)
+		dolfin_build(SRC_DIR, BUILD_DIR, VENV_DIR, DOLFIN_DIR, PYBIND_DIR, args.jobs)
 
-		print("")
+	# The fourth stage: print information for the user
+	elif args.internal_stage == 3:
 		print("Installed packages in virtual environment:")
 		pip.main(["list", "--format=columns"])
 

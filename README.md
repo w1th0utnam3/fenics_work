@@ -15,21 +15,41 @@ sudo apt install python3 python3-pip libboost-all-dev libeigen3-dev
 ```
 
 ### Install script
-The `install_fenics.sh` script downloads all major FEniCS components (fiat, ufl, dijisto, ffc, dolfin and Firedrake's tsfc, coffee, finat) from their repositories (master branch) and installs them in a python virtual environment.
+The `install_fenics.py` script downloads all major FEniCS components (fiat, ufl, dijisto, ffc, dolfin and Firedrake's tsfc, coffee, finat) from their repositories (master branch) and installs them in a python virtual environment.
 
 #### Options
-The supports a single optional argument which specifies the install prefix for the script. In this prefix another folder `fenics` is created, i.e.
+Currently, the script has the following options:
 ```
-install_fenics.sh ~
+usage: install_fenics.py [-h] [-r REPO_DIR] [-y] [-l | -co] [-j JOBS]
+                         [install_prefix]
+
+install and set up an environment for FEniCS from git
+
+positional arguments:
+  install_prefix        FEniCS will be installed into this folder. If not
+                        specified, the current folder will be used.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -r REPO_DIR, --repo-dir REPO_DIR
+                        Directory where source directories (repositories) will
+                        be stored/are already located.
+  -y, --yes             Respond with 'yes' to all confirmation messages.
+  -l, --local           Don't clone any repositories, use local files.
+  -co, --clone-only     Only clone the required repositories, no
+                        install/build.
+  -j JOBS, --jobs JOBS  Number of make jobs to issue for building DOLFIN ('-j'
+                        parameter for make). Default is to use
+                        'os.cpu_count()'.
 ```
-creates the folder `fenics` in the user's home directory and installs the components inside of it
+The `install_prefix` will contain the `fenics_env` virtual environment, the `dolfin` install directory, etc.
 
 #### Virtual environment
-In order to run the script, the `virtualenv` python package is required. Install it using:
+In order to run the script, the `virtualenv` and `click` python package is required. Install it using:
 ```
-pip3 install virtualenv
+pip3 install virtualenv click
 ```
-Optionally add the user python bin directory to your path in `~/.profile`:
+Optionally, add the user python bin directory to your path in `~/.profile`:
 ```
 export PATH=$PATH:~/.local/bin
 ```
@@ -53,4 +73,10 @@ DOLFIN may make use of the following optional packages:
 They can be installed using:
 ```
 sudo apt install zlib1g-dev libhdf5-dev petsc-dev slepc-dev
+```
+
+## Activating the environment
+```
+source fenics/fenics_env/bin/activate
+source fenics/dolfin/share/dolfin/dolfin.conf
 ```
