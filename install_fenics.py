@@ -64,7 +64,7 @@ def pip_install(src_dir: str):
 		pip.main(["install", "-e", f"{pkg_path}"])
 		print("")
 
-	for pkg in ["six", "singledispatch", "pulp", "pytest"]:
+	for pkg in ["six", "singledispatch", "pulp", "pytest", "pybind11"]:
 		pip.main(["install", pkg])
 		print("")
 

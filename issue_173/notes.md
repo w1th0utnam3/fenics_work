@@ -16,7 +16,9 @@ Compilation is started in line 176:
 status, output, lib_filename, err_info = \
                 build_shared_library(signature, header, source, dependencies, params)
 ```
+
 Issue is probably [`generate_preintegrated_dofblock_partition`](https://bitbucket.org/fenics-project/ffc/src/479fae88be777da83742306eefe271cb168fcaa9/ffc/uflacs/integralgenerator.py?at=master&fileviewer=file-view-default#integralgenerator.py-989) method which generates the C++ code for the `tabulate_tensor` function and performs unrolling of 49^2 assignments with many inlined double values.
+
 ### Calls stack:
  - Stage 4: code generation in `ffc/compiler.py`, line 200
  - ...
