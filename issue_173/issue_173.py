@@ -14,6 +14,8 @@ def main():
     ch.setFormatter(formatter)
     root.addHandler(ch)
 
+    test_case = 0
+
     fcp = dict(parameters['form_compiler'])
 
     # Works:
@@ -23,40 +25,50 @@ def main():
     #fcp['representation'] = 'tsfc'
     #fcp['mode'] = 'spectral'
 
-    # Original issue code is fixed:
-    """
-    mesh = UnitCubeMesh(1, 1, 1)
-    V = FunctionSpace(mesh, 'Nedelec 1st kind H(curl)', 3)
-    u, v = TrialFunction(V), TestFunction(V)
-    a = (inner(curl(u), curl(v)) - Constant(1)*inner(u, v))*dx
-    assemble(a, form_compiler_parameters=fcp)
-    """
+    if test_case == 0:
+        # Original issue code is fixed
 
-    # Now onto regression...:
-    mesh = UnitSquareMesh(1, 1)
+        mesh = UnitCubeMesh(1, 1, 1)
+        V = FunctionSpace(mesh, 'Nedelec 1st kind H(curl)', 3)
+        u, v = TrialFunction(V), TestFunction(V)
+        a = (inner(curl(u), curl(v)) - Constant(1)*inner(u, v))*dx
 
-    # Elements
-    element = FunctionSpace(mesh, "Lagrange", 2)
+    elif test_case == 1:
+        # Now onto regression...:
 
-    # Trial and test functions
-    u = TrialFunction(element)
-    v = TestFunction(element)
+        mesh = UnitSquareMesh(1, 1)
 
-    # Facet normal, mesh size and right-hand side
-    n = FacetNormal(mesh)
-    h = 2.0 * Circumradius(mesh)
+        # Elements
+        element = FunctionSpace(mesh, "Lagrange", 2)
 
-    # Compute average of mesh size
-    h_avg = (h('+') + h('-')) / 2.0
+        # Trial and test functions
+        u = TrialFunction(element)
+        v = TestFunction(element)
 
-    # Parameters
-    alpha = Constant(1)
+        # Facet normal, mesh size and right-hand side
+        n = FacetNormal(mesh)
+        h = 2.0 * Circumradius(mesh)
 
-    # Bilinear form
-    a = inner(div(grad(u)), div(grad(v))) * dx \
-        - inner(jump(grad(u), n), avg(div(grad(v)))) * dS \
-        - inner(avg(div(grad(u))), jump(grad(v), n)) * dS \
-        + alpha / h_avg * inner(jump(grad(u), n), jump(grad(v), n)) * dS
+        # Compute average of mesh size
+        h_avg = (h('+') + h('-')) / 2.0
+
+        # Parameters
+        alpha = Constant(1)
+
+        # Bilinear form
+        a = inner(div(grad(u)), div(grad(v))) * dx \
+            - inner(jump(grad(u), n), avg(div(grad(v)))) * dS \
+            - inner(avg(div(grad(u))), jump(grad(v), n)) * dS \
+            + alpha / h_avg * inner(jump(grad(u), n), jump(grad(v), n)) * dS
+
+    elif test_case == 2:
+        mesh = UnitSquareMesh(1,1)
+        element = VectorFunctionSpace(mesh, "Lagrange", 1)
+
+        v = TrialFunction(element)
+        u = TestFunction(element)
+
+        a = dot(v, u) * ds
 
     assemble(a, form_compiler_parameters=fcp)
 
