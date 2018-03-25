@@ -1,0 +1,37 @@
+# Original cmdline:
+c++ -Wall -shared -fPIC -std=c++11 -O2
+ -I/home/fabian/fenics/src/ffc/ffc/backends/ufc
+ -I/home/fabian/fenics/dolfin/include
+ -I/usr/lib/x86_64-linux-gnu/hdf5/openmpi/include
+ -I/usr/include/scotch
+ -I/usr/include/suitesparse
+ -I/usr/include/hypre
+ -I/usr/include/superlu
+ -I/usr/lib/petscdir/3.7.6/x86_64-linux-gnu-real/include
+ -I/usr/lib/slepcdir/3.7.4/x86_64-linux-gnu-real/include
+ -I/usr/lib/x86_64-linux-gnu/openmpi/include
+ -I/usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/opal/mca/event/libevent2022/libevent/include
+ -I/usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/opal/mca/event/libevent2022/libevent
+ -I/usr/lib/x86_64-linux-gnu/openmpi/include/openmpi
+ -I/usr/include/hdf5/openmpi
+ -I/usr/include/eigen3
+ -I/home/fabian/.cache/dijitso/include ffc_form_17e3686599240bb192a0f8e717c822490d6b7fd6.cpp 
+ -I/home/fabian/.cache/dijitso/lib 
+ 
+ -Wl,-rpath,/home/fabian/.cache/dijitso/lib
+ -Idijitso-ffc_element_ddaa4593b1a7ec1ae27b41184e8325d33404086f
+ -Idijitso-ffc_element_1fb193895e48e0853cee11997205f8395652c52c
+ -Idijitso-ffc_element_9d8b80d57f30df3118015d295eefca15a279fcbf
+ -Idijitso-ffc_element_4e3d79ea532ed7ae84ae5324133b560d3720012c
+ -Idijitso-ffc_coordinate_mapping_61f62f9f94dc629eb298ddc3b9c6604e347a2d77 
+ -olibdijitso-ffc_form_17e3686599240bb192a0f8e717c822490d6b7fd6.so
+
+g++ -Wall -shared -fPIC -std=c++11 -O2 -I"U:/Temp/src/ffc/ffc/backends/ufc" ffc_form_17e3686599240bb192a0f8e717c822490d6b7fd6.cpp -olibdijitso-ffc_form_17e3686599240bb192a0f8e717c822490d6b7fd6.so
+g++ -Wall -shared -fPIC -std=c++11 -O0 -I"U:/Temp/src/ffc/ffc/backends/ufc" issue_173.cpp -olib_issue_173.so
+g++ -Wall -fPIC -std=c++11 -O0 issue_173.cpp -oissue_173.out
+g++ -Wall -fPIC -std=c++11 -O1 -fno-tree-ter -fno-tree-sra -fno-tree-slsr -fno-tree-sink -fno-tree-pta -fno-tree-fre -fno-tree-dse -fno-tree-dominator-opts -fno-tree-dce -fno-tree-copy-prop -fno-tree-coalesce-vars -fno-tree-ch -fno-tree-ccp -fno-tree-builtin-call-dce -fno-tree-bit-ccp -fno-ssa-phiopt -fno-split-wide-types -fno-shrink-wrap -fno-reorder-blocks -fno-omit-frame-pointer -fno-move-loop-invariants -fno-ipa-reference -fno-ipa-pure-const -fno-ipa-profile -fno-inline-functions-called-once -fno-if-conversion2 -fno-if-conversion -fno-guess-branch-probability -fno-forward-propagate -fno-defer-pop -fno-cprop-registers -fno-compare-elim -fno-combine-stack-adjustments -fno-branch-count-reg issue_173.cpp -oissue_173.out
+
+g++ -Wall -shared -fPIC -std=c++11 -O0 -ftree-ter -ftree-sra -ftree-slsr -ftree-sink -ftree-pta -ftree-fre -ftree-dse -ftree-dominator-opts -ftree-dce -ftree-copy-prop -ftree-coalesce-vars -ftree-ch -ftree-ccp -ftree-builtin-call-dce -ftree-bit-ccp -fssa-phiopt -fsplit-wide-types -fshrink-wrap -freorder-blocks -fomit-frame-pointer -fmove-loop-invariants -fipa-reference -fipa-pure-const -fipa-profile -finline-functions-called-once -fif-conversion2 -fif-conversion -fguess-branch-probability -fforward-propagate -fdefer-pop -fcprop-registers -fcompare-elim -fcombine-stack-adjustments -fbranch-count-reg -I"U:/Temp/src/ffc/ffc/backends/ufc" ffc_form_17e3686599240bb192a0f8e717c822490d6b7fd6.cpp -olibdijitso-ffc_form_17e3686599240bb192a0f8e717c822490d6b7fd6.so
+g++ -Wall -shared -fno-PIC -std=c++11 -O1 -fno-tree-ter -fno-tree-sra -fno-tree-slsr -fno-tree-sink -fno-tree-pta -fno-tree-fre -fno-tree-dse -fno-tree-dominator-opts -fno-tree-dce -fno-tree-copy-prop -fno-tree-coalesce-vars -fno-tree-ch -fno-tree-ccp -fno-tree-builtin-call-dce -fno-tree-bit-ccp -fno-ssa-phiopt -fno-split-wide-types -fno-shrink-wrap -fno-reorder-blocks -fno-omit-frame-pointer -fno-move-loop-invariants -fno-ipa-reference -fno-ipa-pure-const -fno-ipa-profile -fno-inline-functions-called-once -fno-if-conversion2 -fno-if-conversion -fno-guess-branch-probability -fno-forward-propagate -fno-defer-pop -fno-cprop-registers -fno-compare-elim -fno-combine-stack-adjustments -fno-branch-count-reg -I"U:/Temp/src/ffc/ffc/backends/ufc" ffc_form_17e3686599240bb192a0f8e717c822490d6b7fd6.cpp -olibdijitso-ffc_form_17e3686599240bb192a0f8e717c822490d6b7fd6.so
+
+g++ -Q -O0 -ftree-ter -ftree-sra -ftree-slsr -ftree-sink -ftree-pta -ftree-fre -ftree-dse -ftree-dominator-opts -ftree-dce -ftree-copy-prop -ftree-coalesce-vars -ftree-ch -ftree-ccp -ftree-builtin-call-dce -ftree-bit-ccp -fssa-phiopt -fsplit-wide-types -fshrink-wrap -freorder-blocks -fomit-frame-pointer -fmove-loop-invariants -fipa-reference -fipa-pure-const -fipa-profile -finline-functions-called-once -fif-conversion2 -fif-conversion -fguess-branch-probability -fforward-propagate -fdefer-pop -fcprop-registers -fcompare-elim -fcombine-stack-adjustments -fbranch-count-reg --help=optimizers > o0extra.txt
