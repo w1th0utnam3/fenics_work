@@ -73,7 +73,7 @@ def pip_install(src_dir: str):
 		pip.main(["install", "-e", f"{pkg_path}"])
 		print("")
 
-	for pkg in ["six", "singledispatch", "pulp", "pytest", "pybind11"]:
+	for pkg in ["six", "singledispatch", "pulp", "pytest", "pybind11", "mpi4py", "numpy", "scipy", "numba", "matplotlib"]:
 		pip.main(["install", pkg])
 		print("")
 
@@ -197,10 +197,6 @@ def petsc_slepc_pip(src_dir: str, venv_dir: str, petsc_dir: str, slepc_dir: str)
 	environment["SLEPC_DIR"] = slepc_dir
 
 	try:
-		print_stdout([os.path.join(venv_dir, "bin", "pip3"), "install", "--no-cache-dir", "mpi4py", "numpy", "scipy", "numba"], 
-			raise_on_nonzero=True, 
-			cwd=src_dir,
-			env=environment)
 		print_stdout([os.path.join(venv_dir, "bin", "pip3"), "install", "--no-cache-dir", f"https://bitbucket.org/petsc/petsc4py/downloads/petsc4py-{PETSC4PY_VERSION}.tar.gz"], 
 			raise_on_nonzero=True, 
 			cwd=src_dir,
