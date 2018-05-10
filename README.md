@@ -8,10 +8,11 @@ The following packages are required for FEniCS components
  - python3-pip
  - libboost-all-dev
  - libeigen3-dev
+ - cmake
 
 As a single command:
 ```
-sudo apt install python3 python3-pip libboost-all-dev libeigen3-dev
+sudo apt install python3 python3-pip libboost-all-dev libeigen3-dev cmake
 ```
 
 ### Install script
@@ -45,7 +46,7 @@ optional arguments:
 The `install_prefix` will contain the `fenics_env` virtual environment, the `dolfin` install directory, etc.
 
 #### Virtual environment
-In order to run the script, the `virtualenv` and `click` python package is required. Install it using:
+In order to run the script, the `virtualenv` and `click` python packages are required. Install it using:
 ```
 pip3 install virtualenv click
 ```
@@ -72,7 +73,7 @@ DOLFIN may make use of the following optional packages:
  * ZLIB, Compression library, <http://www.zlib.net>
 They can be installed using:
 ```
-sudo apt install zlib1g-dev libhdf5-dev petsc-dev slepc-dev
+sudo apt install zlib1g-dev libhdf5-dev petsc-dev slepc-dev libmetis-dev
 ```
 
 ## Activating the environment
