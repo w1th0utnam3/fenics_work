@@ -8,11 +8,11 @@ REPOS = [
 		"https://bitbucket.org/fenics-project/fiat.git",
 		"https://bitbucket.org/fenics-project/ufl.git",
 		"https://bitbucket.org/fenics-project/dijitso.git",
-		"https://bitbucket.org/fenics-project/ffc.git",
+		"https://github.com/FEniCS/ffcx.git",
 		"https://github.com/blechta/tsfc.git",
 		"https://github.com/blechta/COFFEE.git",
 		"https://github.com/blechta/FInAT.git",
-		"https://bitbucket.org/fenics-project/dolfin.git",
+		"https://github.com/FEniCS/dolfinx.git",
 		"https://github.com/pybind/pybind11.git"
 	]
 
@@ -20,7 +20,7 @@ PIP_INSTALLS = [
 	"fiat",
 	"ufl",
 	"dijitso",
-	"ffc",
+	"ffcx",
 	"tsfc",
 	"COFFEE",
 	"FInAT"
@@ -71,6 +71,8 @@ def pip_install(src_dir: str):
 	return 0
 
 def pybind_build(src_dir: str, build_dir: str, pybind_dir: str):
+	print("pybind build")
+
 	pybind_build_path = os.path.join(build_dir, "pybind11")
 	os.makedirs(pybind_build_path, exist_ok=True)
 
@@ -90,13 +92,15 @@ def pybind_build(src_dir: str, build_dir: str, pybind_dir: str):
 	return 0
 
 def dolfin_build(src_dir: str, build_dir: str, venv_dir: str, dolfin_dir: str, pybind_dir: str, jobs: int):
-	dolfin_build_path = os.path.join(build_dir, "dolfin")
+	print("dolfin build")
+
+	dolfin_build_path = os.path.join(build_dir, "dolfinx")
 	os.makedirs(dolfin_build_path, exist_ok=True)
 	
 	try:
 		print("Running CMake...")
 		activate_file = os.path.join(venv_dir, "bin", "activate")
-		print_stdout([f". {activate_file} && cmake -DCMAKE_INSTALL_PREFIX={dolfin_dir} {src_dir}/dolfin"],
+		print_stdout([f". {activate_file} && cmake -DCMAKE_INSTALL_PREFIX={dolfin_dir} {os.path.join(src_dir, 'dolfinx', 'cpp')}"],
 			raise_on_nonzero=True,
 			cwd=dolfin_build_path,
 			shell=True
@@ -117,7 +121,7 @@ def dolfin_build(src_dir: str, build_dir: str, venv_dir: str, dolfin_dir: str, p
 		environment["DOLFIN_DIR"] = dolfin_dir
 		print_stdout([os.path.join(venv_dir, "bin", "pip3"), "install", "-e", "."], 
 			raise_on_nonzero=True, 
-			cwd=os.path.join(src_dir, "dolfin", "python"),
+			cwd=os.path.join(src_dir, "dolfinx", "python"),
 			env=environment
 		)
 		print("Installing DOLFIN Python was successful.")
@@ -157,7 +161,7 @@ def main():
 	VENV_DIR = os.path.join(FENICS_DIR, "fenics_env")
 	BUILD_DIR = os.path.join(FENICS_DIR, "build")
 	PYBIND_DIR = os.path.join(FENICS_DIR, "include", "pybind11")
-	DOLFIN_DIR = os.path.join(FENICS_DIR, "dolfin")
+	DOLFIN_DIR = os.path.join(FENICS_DIR, "dolfinx")
 
 	# The clone only branch
 	if args.clone_only is True:
@@ -223,7 +227,7 @@ def main():
 
 		print("")
 		print(f"Activate FEniCS python virtualenv using 'source {FENICS_DIR}/fenics_env/bin/activate'")
-		print(f"Activate DOLFIN build environment using 'source {FENICS_DIR}/dolfin/share/dolfin/dolfin.conf'")
+		print(f"Activate DOLFIN build environment using 'source {FENICS_DIR}/dolfinx/share/dolfin/dolfin.conf'")
 		return
 	
 if __name__ == '__main__':
