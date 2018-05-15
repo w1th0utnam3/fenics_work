@@ -78,6 +78,21 @@ sudo apt install zlib1g-dev libhdf5-dev petsc-dev slepc-dev libmetis-dev
 
 ## Activating the environment
 ```
-source fenics/fenics_env/bin/activate
-source fenics/dolfin/share/dolfin/dolfin.conf
+source ~/fenics/fenics_env/bin/activate
+source ~/fenics/dolfinx/share/dolfin/dolfin.conf
+export PETSC_DIR=~/fenics/petsc
+export SLEPC_DIR=~/fenics/slepc
 ```
+
+## Debugging
+
+On Ubuntu the default core file size limit is 0. Use
+```
+ulimit -c unlimited
+```
+to remove this restrictions. The core dumps will be located in the working directory.
+They can be inspected by launching
+```
+gdb <executable path> <core dump path>
+```
+followed by the `bt` (backtrace) command inside `gdb`. The command `quit` can be used to exit `gdb`.
