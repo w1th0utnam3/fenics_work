@@ -123,16 +123,32 @@ RUN wget -nc --quiet https://github.com/pybind/pybind11/archive/v${PYBIND11_VERS
 
 WORKDIR /local/fenics
 
-# Install FIAT, UFL, dijitso (development versions, master branch)
+# Install dependencies for loopy
+RUN apt-get -qq update && \
+    apt-get -y --with-new-pkgs -o Dpkg::Options::="--force-confold" upgrade && \
+    apt-get -y install \
+    ocl-icd-opencl-dev \
+	rpm2cpio && \
+	cpio && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+RUN pip3 install --no-cache-dir pyopencl
+
+RUN git clone https://github.com/inducer/loopy.git && \
+	pip3 install -e /local/fenics/loopy
+
+# Install FIAT, UFL, dijitso and ffcx (development versions, master branch)
 RUN git clone https://bitbucket.org/fenics-project/fiat.git && \
 	git clone https://bitbucket.org/fenics-project/ufl.git && \
 	git clone https://bitbucket.org/fenics-project/dijitso.git && \
 	git clone https://github.com/w1th0utnam3/ffcx.git && \
-	cd /local/fenics/fiat && pip3 install -e . && \
-	cd /local/fenics/ufl && pip3 install -e . && \
-	cd /local/fenics/dijitso && pip3 install -e . && \
-	cd /local/fenics/ffcx && pip3 install -e .
+	pip3 install -e /local/fenics/fiat && \
+	pip3 install -e /local/fenics/ufl && \
+	pip3 install -e /local/fenics/dijitso && \
+	pip3 install -e /local/fenics/ffcx
 
+# Build and install dolfinx
 RUN git clone https://github.com/FEniCS/dolfinx.git && \
 	cd dolfinx && \
 	mkdir build && \
@@ -141,4 +157,5 @@ RUN git clone https://github.com/FEniCS/dolfinx.git && \
 	make && \
 	make install
 
-RUN pip3 install /local/fenics/dolfinx/python
+# Install dolfinx python package
+RUN pip3 install -e /local/fenics/dolfinx/python

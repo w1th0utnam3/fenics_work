@@ -84,6 +84,17 @@ export PETSC_DIR=~/fenics/petsc
 export SLEPC_DIR=~/fenics/slepc
 ```
 
+## Docker image
+
+In `main` directory
+```
+docker build -t simd-base .
+```
+then start container with
+```
+ docker run -v .:/local/fenics -it simd-base /bin/bash
+ ```
+
 ## Debugging
 
 On Ubuntu the default core file size limit is 0. Use
