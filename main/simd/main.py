@@ -1,4 +1,9 @@
+import sys
 import check_install
+
+if check_install.check("/local/fenics") != 0:
+    print("Warning: Missing package was installed. Please rerun script.")
+    sys.exit(1)
 
 import numpy as np
 import dolfin
@@ -80,10 +85,6 @@ def poisson():
 
 
 def main():
-    if check_install.check("/local/fenics") != 0:
-        print("Warning: Missing package was installed. Please rerun script.")
-        return
-
     loopy_example()
 
     #poisson()
