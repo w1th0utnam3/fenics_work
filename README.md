@@ -1,22 +1,54 @@
-# FEniCS 
+# SIMD FEniCS project
 
+Working repository for the FEniCS Google Summer of Code SIMD project.
 
-## Installing FEniCS from source
+## Docker image
+
+This repository provides a Dockerfile with all required components. In the root folder of the repository run
+```
+docker build -t simd-work .
+```
+then start container with
+```
+docker run -v ~/fenics_work/main:/local/fenics -it simd-work /bin/bash
+```
+
+## Installing FEniCS locally
 ### Required packages
-The following packages are required for FEniCS components
- - python3
- - python3-pip
- - libboost-all-dev
- - libeigen3-dev
- - cmake
-
+The [dolfinx Dockerfile](https://github.com/FEniCS/dolfinx/blob/master/Dockerfile) shows which packages are required.
 As a single command:
 ```
-sudo apt install python3 python3-pip libboost-all-dev libeigen3-dev cmake
+sudo apt-get -y install \
+    cmake \
+    doxygen \
+    g++ \
+    gfortran \
+    git \
+    gmsh \
+    graphviz \
+    libboost-dev \
+    libboost-filesystem-dev \
+    libboost-iostreams-dev \
+    libboost-math-dev \
+    libboost-program-options-dev \
+    libboost-system-dev \
+    libboost-thread-dev \
+    libboost-timer-dev \
+    libeigen3-dev \
+    libhdf5-openmpi-dev \
+    liblapack-dev \
+    libopenmpi-dev \
+    libopenblas-dev \
+    openmpi-bin \
+    pkg-config \
+    python3-dev \
+    valgrind \
+    wget \
+    bash-completion
 ```
 
 ### Install script
-The `install_fenics.py` script downloads all major FEniCS components (fiat, ufl, dijisto, ffc, dolfin and Firedrake's tsfc, coffee, finat) from their repositories (master branch) and installs them in a python virtual environment.
+The `install_fenics.py` script downloads all major FEniCS components (fiat, ufl, dijisto, ffcx, dolfinx and Firedrake's tsfc, coffee, finat) from their repositories (master branch) and installs them in a python virtual environment.
 
 #### Options
 Currently, the script has the following options:
@@ -55,28 +87,8 @@ Optionally, add the user python bin directory to your path in `~/.profile`:
 export PATH=$PATH:~/.local/bin
 ```
 
-### Optional packages
-
-DOLFIN may make use of the following optional packages:
- * MPI, Message Passing Interface (MPI)
-   Enables DOLFIN to run in parallel with MPI
- * PETSc (required version >= 3.7), Portable, Extensible Toolkit for Scientific Computation, <https://www.mcs.anl.gov/petsc/>
-   Enables the PETSc linear algebra backend
- * SLEPc (required version >= 3.7), Scalable Library for Eigenvalue Problem Computations, <http://slepc.upv.es/>
- * SCOTCH, Programs and libraries for graph, mesh and hypergraph partitioning, <https://www.labri.fr/perso/pelegrin/scotch>
-   Enables parallel graph partitioning
- * UMFPACK, Sparse LU factorization library, <http://faculty.cse.tamu.edu/davis/suitesparse.html>
- * BLAS, Basic Linear Algebra Subprograms, <http://netlib.org/blas/>
- * Threads
- * CHOLMOD, Sparse Cholesky factorization library for sparse matrices, <http://faculty.cse.tamu.edu/davis/suitesparse.html>
- * HDF5, Hierarchical Data Format 5 (HDF5), <https://www.hdfgroup.org/HDF5>
- * ZLIB, Compression library, <http://www.zlib.net>
-They can be installed using:
-```
-sudo apt install zlib1g-dev libhdf5-dev petsc-dev slepc-dev libmetis-dev
-```
-
 ## Activating the environment
+If the installtion folder was specified as `~/fenics`, the proper environment can be activated by
 ```
 source ~/fenics/fenics_env/bin/activate
 source ~/fenics/dolfinx/share/dolfin/dolfin.conf
@@ -84,25 +96,14 @@ export PETSC_DIR=~/fenics/petsc
 export SLEPC_DIR=~/fenics/slepc
 ```
 
-## Docker image
-
-In `main` directory
-```
-docker build -t simd-base .
-```
-then start container with
-```
- docker run -v .:/local/fenics -it simd-base /bin/bash
- ```
-
 ## Debugging
 
 On Ubuntu the default core file size limit is 0. Use
 ```
 ulimit -c unlimited
 ```
-to remove this restrictions. The core dumps will be located in the working directory.
-They can be inspected by launching
+to remove this restrictions. However this has to be rerun in every shell session.
+The core dumps will be located in the working directory. They can be inspected by launching
 ```
 gdb <executable path> <core dump path>
 ```
