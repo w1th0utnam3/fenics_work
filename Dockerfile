@@ -44,21 +44,21 @@ RUN pip3 install --no-cache-dir pyopencl
 
 WORKDIR /local/fenics
 
-RUN git clone https://github.com/inducer/loopy.git && \
+RUN git clone --recurse-submodules https://github.com/inducer/loopy.git && \
 	pip3 install -e /local/fenics/loopy
 
 # Install FIAT, UFL, dijitso and ffcx (development versions, master branch)
-RUN git clone https://bitbucket.org/fenics-project/fiat.git && \
-	git clone https://bitbucket.org/fenics-project/ufl.git && \
-	git clone https://bitbucket.org/fenics-project/dijitso.git && \
-	git clone https://github.com/w1th0utnam3/ffcx.git && \
+RUN git clone --recurse-submodules https://bitbucket.org/fenics-project/fiat.git && \
+	git clone --recurse-submodules https://bitbucket.org/fenics-project/ufl.git && \
+	git clone --recurse-submodules https://bitbucket.org/fenics-project/dijitso.git && \
+	git clone --recurse-submodules https://github.com/w1th0utnam3/ffcx.git && \
 	pip3 install -e /local/fenics/fiat && \
 	pip3 install -e /local/fenics/ufl && \
 	pip3 install -e /local/fenics/dijitso && \
 	pip3 install -e /local/fenics/ffcx
 
 # Build and install dolfinx
-RUN git clone https://github.com/FEniCS/dolfinx.git && \
+RUN git clone --recurse-submodules https://github.com/FEniCS/dolfinx.git && \
 	cd dolfinx && \
 	mkdir build && \
 	cd build && \
