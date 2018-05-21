@@ -8,10 +8,11 @@ The following packages are required for FEniCS components
  - python3-pip
  - libboost-all-dev
  - libeigen3-dev
+ - cmake
 
 As a single command:
 ```
-sudo apt install python3 python3-pip libboost-all-dev libeigen3-dev
+sudo apt install python3 python3-pip libboost-all-dev libeigen3-dev cmake
 ```
 
 ### Install script
@@ -45,7 +46,7 @@ optional arguments:
 The `install_prefix` will contain the `fenics_env` virtual environment, the `dolfin` install directory, etc.
 
 #### Virtual environment
-In order to run the script, the `virtualenv` and `click` python package is required. Install it using:
+In order to run the script, the `virtualenv` and `click` python packages are required. Install it using:
 ```
 pip3 install virtualenv click
 ```
@@ -72,11 +73,37 @@ DOLFIN may make use of the following optional packages:
  * ZLIB, Compression library, <http://www.zlib.net>
 They can be installed using:
 ```
-sudo apt install zlib1g-dev libhdf5-dev petsc-dev slepc-dev
+sudo apt install zlib1g-dev libhdf5-dev petsc-dev slepc-dev libmetis-dev
 ```
 
 ## Activating the environment
 ```
-source fenics/fenics_env/bin/activate
-source fenics/dolfin/share/dolfin/dolfin.conf
+source ~/fenics/fenics_env/bin/activate
+source ~/fenics/dolfinx/share/dolfin/dolfin.conf
+export PETSC_DIR=~/fenics/petsc
+export SLEPC_DIR=~/fenics/slepc
 ```
+
+## Docker image
+
+In `main` directory
+```
+docker build -t simd-base .
+```
+then start container with
+```
+ docker run -v .:/local/fenics -it simd-base /bin/bash
+ ```
+
+## Debugging
+
+On Ubuntu the default core file size limit is 0. Use
+```
+ulimit -c unlimited
+```
+to remove this restrictions. The core dumps will be located in the working directory.
+They can be inspected by launching
+```
+gdb <executable path> <core dump path>
+```
+followed by the `bt` (backtrace) command inside `gdb`. The command `quit` can be used to exit `gdb`.

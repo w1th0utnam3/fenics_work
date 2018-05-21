@@ -1,0 +1,18 @@
+[submodule "main/fiat"]
+	path = main/fiat
+	url = https://bitbucket.org/fenics-project/fiat.git
+[submodule "main/ufl"]
+	path = main/ufl
+	url = https://bitbucket.org/fenics-project/ufl.git
+[submodule "main/dijitso"]
+	path = main/dijitso
+	url = https://bitbucket.org/fenics-project/dijitso.git
+[submodule "main/dolfinx"]
+	path = main/dolfinx
+	url = https://github.com/w1th0utnam3/dolfinx.git
+[submodule "main/ffcx"]
+	path = main/ffcx
+	url = https://github.com/w1th0utnam3/ffcx
+[submodule "main/loopy"]
+	path = main/loopy
+	url = https://github.com/inducer/loopy.git
