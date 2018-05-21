@@ -53,7 +53,7 @@ def poisson():
     a = inner(grad(u), grad(v)) * dx
     L = f * v * dx + g * v * ds
 
-    fcp = dolfin.parameter.ffc_default_parameters()
+    fcp = dict(dolfin.parameter.ffc_default_parameters())
     #fcp['representation'] = 'tsfc'
 
     # Compute solution
