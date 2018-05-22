@@ -9,7 +9,7 @@
 	url = https://bitbucket.org/fenics-project/dijitso.git
 [submodule "main/dolfinx"]
 	path = main/dolfinx
-	url = https://github.com/fenics/dolfinx.git
+	url = https://github.com/w1th0utnam3/dolfinx.git
 [submodule "main/ffcx"]
 	path = main/ffcx
 	url = https://github.com/w1th0utnam3/ffcx
