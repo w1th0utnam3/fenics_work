@@ -37,7 +37,7 @@ RUN git clone --recurse-submodules https://bitbucket.org/fenics-project/fiat.git
 	pip3 install -e /local/fenics/ffcx
 
 # Build and install dolfinx, use the commit that was used to build the base image
-ARG DOLFINX_COMMIT_HASH=16ac4c36913d197d7f364b347b40a528188e401b
+ARG DOLFINX_COMMIT_HASH=ece4f4905758931ff4b34d3d3fce745c6acef64e
 RUN git clone --recurse-submodules https://github.com/FEniCS/dolfinx.git && \
 	cd dolfinx && \
 	git checkout ${DOLFINX_COMMIT_HASH} && \
