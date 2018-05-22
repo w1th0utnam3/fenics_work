@@ -1,13 +1,7 @@
-# Dockerfile to build the FEniCS-X development libraries
+# Dockerfile to build the ffcx simd dev env
 #
-# Authors:
-# Jack S. Hale <jack.hale@uni.lu>
-# Lizao Li <lzlarryli@gmail.com>
-# Garth N. Wells <gnw20@cam.ac.uk>
-# Jan Blechta <blechta@karlin.mff.cuni.cz>
 
-FROM fenicsproject/dolfinx:latest
-LABEL maintainer="fenics-project <fenics-support@googlegroups.org>"
+FROM quay.io/w1th0utnam3/dolfinx:latest
 
 WORKDIR /tmp
 
@@ -50,8 +44,20 @@ RUN git clone --recurse-submodules https://github.com/w1th0utnam3/dolfinx.git &&
 # Install dolfinx python package
 RUN pip3 install -e /local/fenics/dolfinx/python
 
-# Install packages for TSFC code generatoin
+WORKDIR /tmp
+
+# Install dependencies for TSFC code generation
 RUN pip3 install six singledispatch pulp networkx
-RUN pip3 install --no-cache-dir git+https://github.com/blechta/tsfc.git
-RUN pip3 install --no-cache-dir git+https://github.com/blechta/coffee.git
-RUN pip3 install --no-cache-dir git+https://github.com/blechta/finat.git
+
+# Install packages for TSFC code generation
+RUN git clone https://github.com/firedrakeproject/tsfc.git && \
+	cd tsfc && \
+	git fetch && \
+	git checkout tsfc2loopy && \
+	cd / && \
+	rm -rf /tmp/* /var/tmp/*
+
+RUN pip3 install --no-cache-dir git+https://github.com/coneoproject/COFFEE.git
+RUN pip3 install --no-cache-dir git+https://github.com/FInAT/FInAT.git
+
+WORKDIR /local/fenics
