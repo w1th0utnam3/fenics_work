@@ -49,3 +49,9 @@ RUN git clone --recurse-submodules https://github.com/FEniCS/dolfinx.git && \
 
 # Install dolfinx python package
 RUN pip3 install -e /local/fenics/dolfinx/python
+
+# Install packages for TSFC code generatoin
+RUN pip3 install six singledispatch pulp networkx
+RUN pip3 install --no-cache-dir git+https://github.com/blechta/tsfc.git
+RUN pip3 install --no-cache-dir git+https://github.com/blechta/coffee.git
+RUN pip3 install --no-cache-dir git+https://github.com/blechta/finat.git
