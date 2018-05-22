@@ -38,7 +38,7 @@ RUN git clone --recurse-submodules https://bitbucket.org/fenics-project/fiat.git
 
 # Build and install dolfinx, use the commit that was used to build the base image
 ARG DOLFINX_COMMIT_HASH=ece4f4905758931ff4b34d3d3fce745c6acef64e
-RUN git clone --recurse-submodules https://github.com/FEniCS/dolfinx.git && \
+RUN git clone --recurse-submodules https://github.com/w1th0utnam3/dolfinx.git && \
 	cd dolfinx && \
 	git checkout ${DOLFINX_COMMIT_HASH} && \
 	mkdir build && \
