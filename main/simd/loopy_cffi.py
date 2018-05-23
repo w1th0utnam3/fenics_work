@@ -7,6 +7,8 @@ import time
 
 
 def generate_kernel():
+    '''Generates and returns source and header for a kernel using loopy'''
+
     knl = lp.make_kernel(
         "{ [i]: 0<=i<n }",
         "out[i] = 2*a[i]",
@@ -20,8 +22,10 @@ def generate_kernel():
     return lp.generate_code_v2(knl).all_code(), str(lp.generate_header(knl)[0])
 
 
-def postprocess_loopy(code_c: str, code_h: str):
-    # CFFI does not support "__restrict__", therefore replace it with C99 "restrict"
+def preprocess_loopy(code_c: str, code_h: str):
+    '''Run some preprocessing steps on the kernel code befor sending it to CFFI'''
+
+    # CFFI c parser does not support "__restrict__", therefore replace it with C99 "restrict"
     code_c = code_c.replace("__restrict__", "restrict")
     code_h = code_h.replace("__restrict__", "restrict")
 
@@ -29,6 +33,8 @@ def postprocess_loopy(code_c: str, code_h: str):
 
 
 def compile_kernel(kernel_name: str, kernel_c: str, kernel_h: str):
+    '''Compile the supplied kernel code using CFFI in the current folder'''
+
     ffi = cffi.FFI()
 
     ffi.set_source(kernel_name, kernel_c)
@@ -39,6 +45,8 @@ def compile_kernel(kernel_name: str, kernel_c: str, kernel_h: str):
 
 
 def test_kernel(kernel_name: str):
+    '''Run some tests with the compiled kernel'''
+
     # Import the compiled kernel
     kernel_mod = importlib.import_module(kernel_name)
     ffi, lib = kernel_mod.ffi, kernel_mod.lib
@@ -80,7 +88,7 @@ def run_example():
     kernel_name = "_kernel"
 
     kernel_c, kernel_h = generate_kernel()
-    kernel_c, kernel_h = postprocess_loopy(kernel_c, kernel_h)
+    kernel_c, kernel_h = preprocess_loopy(kernel_c, kernel_h)
 
     print("Generated kernel code:")
     print(kernel_c)
