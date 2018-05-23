@@ -5,18 +5,15 @@ if check_install.check("/local/fenics") != 0:
     print("Warning: Missing package was installed. Please rerun script.")
     sys.exit(1)
 
+import loopy_cffi
+
 import numpy as np
+import loopy as lp
+
 import dolfin
 from dolfin import *
 
-
 def loopy_example():
-    import numpy as np
-    import loopy as lp
-
-    # create
-    # ------
-
     knl = lp.make_kernel(
         "{ [i]: 0<=i<n }",
         "out[i] = 2*a[i]",
@@ -54,7 +51,7 @@ def poisson():
     L = f * v * dx + g * v * ds
 
     fcp = dict(dolfin.parameter.ffc_default_parameters())
-    #fcp['representation'] = 'tsfc'
+    fcp['representation'] = 'tsfc'
 
     # Compute solution
     u = Function(V)
@@ -69,8 +66,10 @@ def poisson():
 
 
 def main():
-    loopy_example()
+    #loopy_example()
     #poisson()
+
+    loopy_cffi.run_test()
 
     return
 
