@@ -69,7 +69,7 @@ def main():
     #loopy_example()
     #poisson()
 
-    loopy_cffi.run_test()
+    loopy_cffi.run_example()
 
     return
 
