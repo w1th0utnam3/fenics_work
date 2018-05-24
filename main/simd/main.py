@@ -1,7 +1,7 @@
 import sys
 import check_install
 
-if check_install.check("/local/fenics") != 0:
+if check_install.check("/local/fenics_work/main") != 0:
     print("Warning: Missing package was installed. Please rerun script.")
     sys.exit(1)
 
