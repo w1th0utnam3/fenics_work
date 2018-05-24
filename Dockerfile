@@ -12,29 +12,25 @@ RUN apt-get -qq update && \
 	ocl-icd-opencl-dev && \
 	apt-get clean && \
 	rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
 # Install PyOpenCL
 RUN pip3 install --no-cache-dir pyopencl
 
-WORKDIR /local/fenics
+# Clone this repository
+WORKDIR /local
+RUN git clone --recurse-submodules https://github.com/w1th0utnam3/fenics_work.git
 
-RUN git clone --recurse-submodules https://github.com/inducer/loopy.git && \
-	pip3 install -e /local/fenics/loopy
+# Install Loopy
+RUN pip3 install -e /local/fenics_work/main/loopy
 
-# Install FIAT, UFL, dijitso and ffcx (development versions, master branch)
-RUN git clone --recurse-submodules https://bitbucket.org/fenics-project/fiat.git && \
-	git clone --recurse-submodules https://bitbucket.org/fenics-project/ufl.git && \
-	git clone --recurse-submodules https://bitbucket.org/fenics-project/dijitso.git && \
-	git clone --recurse-submodules https://github.com/w1th0utnam3/ffcx.git && \
-	pip3 install -e /local/fenics/fiat && \
-	pip3 install -e /local/fenics/ufl && \
-	pip3 install -e /local/fenics/dijitso && \
-	pip3 install -e /local/fenics/ffcx
+# Install FIAT, UFL, dijitso and ffcx
+RUN pip3 install -e /local/fenics_work/main/fiat && \
+	pip3 install -e /local/fenics_work/main/ufl && \
+	pip3 install -e /local/fenics_work/main/dijitso && \
+	pip3 install -e /local/fenics_work/main/ffcx
 
-# Build and install dolfinx, use the commit that was used to build the base image
-ARG DOLFINX_COMMIT_HASH=ece4f4905758931ff4b34d3d3fce745c6acef64e
-RUN git clone --recurse-submodules https://github.com/w1th0utnam3/dolfinx.git && \
-	cd dolfinx && \
-	git checkout ${DOLFINX_COMMIT_HASH} && \
+# Build and install dolfinx
+RUN cd /local/fenics_work/main/dolfinx && \
 	mkdir build && \
 	cd build && \
 	cmake ../cpp && \
@@ -42,7 +38,7 @@ RUN git clone --recurse-submodules https://github.com/w1th0utnam3/dolfinx.git &&
 	make install
 
 # Install dolfinx python package
-RUN pip3 install -e /local/fenics/dolfinx/python
+RUN pip3 install -e /local/fenics_work/main/dolfinx/python
 
 WORKDIR /tmp
 
@@ -60,4 +56,4 @@ RUN git clone https://github.com/firedrakeproject/tsfc.git && \
 RUN pip3 install --no-cache-dir git+https://github.com/coneoproject/COFFEE.git
 RUN pip3 install --no-cache-dir git+https://github.com/FInAT/FInAT.git
 
-WORKDIR /local/fenics
+WORKDIR /local/fenics_work/main
