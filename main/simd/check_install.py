@@ -4,6 +4,8 @@ import subprocess
 def check(source_dir: str):
     '''Checks whether all required packages are installed and install them if necessary.'''
 
+    print("Checking packages...")
+
     required_pkgs = [("fenics-ufl", "ufl"),
                      ("fenics-fiat", "fiat"),
                      ("fenics-dijitso", "dijitso"),
@@ -12,6 +14,7 @@ def check(source_dir: str):
 					 ("loo.py", "loopy")]
 
     packages = subprocess.check_output(["pip3", "list"]).decode('utf-8')
+    #print(packages)
 
     missing = []
     for pkg_name, pkg_path in required_pkgs:
