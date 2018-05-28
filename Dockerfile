@@ -50,6 +50,7 @@ RUN git clone https://github.com/firedrakeproject/tsfc.git && \
 	cd tsfc && \
 	git fetch && \
 	git checkout tsfc2loopy && \
+	pip3 install . && \
 	cd / && \
 	rm -rf /tmp/* /var/tmp/*
 
