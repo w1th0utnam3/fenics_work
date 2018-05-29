@@ -2,6 +2,7 @@ import dolfin
 from dolfin import *
 from dolfin.la import PETScMatrix, PETScVector
 from dolfin.cpp.fem import SystemAssembler
+from dolfin.jit.jit import ffc_jit
 
 import numba as nb
 import numpy as np
@@ -98,7 +99,7 @@ def tabulate_tensor_A(A_, w_, coords_, cell_orientation):
         [y1 - y2, y2 - y0, y0 - y1, x2 - x1, x0 - x2, x1 - x0],
         dtype=np.float64).reshape(2, 3)
 
-    A[:, :] = np.dot(B.T, B) / (2 * Ae)
+    A[:, :] = (B.T @ B) / (2 * Ae)
 
 
 def tabulate_tensor_b(b_, w_, coords_, cell_orientation):
@@ -117,7 +118,7 @@ def assembly():
     # Whether to use custom kernels instead of FFC
     useCustomKernel = True
     # Whether to use CFFI kernels instead of Numba kernels
-    useCffiKernel = True
+    useCffiKernel = False
 
     mesh = UnitSquareMesh(MPI.comm_world, 13, 13)
     Q = FunctionSpace(mesh, "Lagrange", 1)
@@ -140,8 +141,8 @@ def assembly():
                         nb.types.CPointer(nb.types.CPointer(nb.types.double)),
                         nb.types.CPointer(nb.types.double), nb.types.intc)
 
-    fnA = nb.cfunc(sig, cache=True)(tabulate_tensor_A)
-    fnb = nb.cfunc(sig, cache=True)(tabulate_tensor_b)
+    fnA = nb.cfunc(sig, cache=True, nopython=True)(tabulate_tensor_A)
+    fnb = nb.cfunc(sig, cache=True, nopython=True)(tabulate_tensor_b)
 
     if useCustomKernel:
 
