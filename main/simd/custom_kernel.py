@@ -114,7 +114,7 @@ def tabulate_tensor_b(b_, w_, coords_, cell_orientation):
 
 
 def assembly():
-    # Whether to use using custom kernels instead of FFC
+    # Whether to use custom kernels instead of FFC
     useCustomKernel = True
     # Whether to use CFFI kernels instead of Numba kernels
     useCffiKernel = True
@@ -135,7 +135,7 @@ def assembly():
     kernel_mod = importlib.import_module(kernel_name)
     ffi, lib = kernel_mod.ffi, kernel_mod.lib
 
-    # Variant 2: Get pointers to the numba kernels
+    # Variant 2: Get pointers to the Numba kernels
     sig = nb.types.void(nb.types.CPointer(nb.types.double),
                         nb.types.CPointer(nb.types.CPointer(nb.types.double)),
                         nb.types.CPointer(nb.types.double), nb.types.intc)
