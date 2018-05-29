@@ -2,18 +2,22 @@
 
 Working repository for the FEniCS Google Summer of Code SIMD project.
 
-## Docker image
+## Docker image *(recommended)*
 
 This repository provides a Dockerfile with all required components. In the root folder of the repository run
 ```
 docker build -t simd-work .
 ```
+or alternatively get it from the [quay.io repository](https://quay.io/repository/w1th0utnam3/simd-work) using
+```
+docker pull quay.io/w1th0utnam3/simd-work
+```
 then start container with
 ```
-docker run -v ~/fenics_work/main:/local/fenics -it simd-work /bin/bash
+docker run -v ~/fenics_work:/local -it simd-work /bin/bash
 ```
 
-## Installing FEniCS locally
+## Installing FEniCS locally *(not updated)*
 ### Required packages
 The [dolfinx Dockerfile](https://github.com/FEniCS/dolfinx/blob/master/Dockerfile) shows which packages are required.
 As a single command:
@@ -87,7 +91,7 @@ Optionally, add the user python bin directory to your path in `~/.profile`:
 export PATH=$PATH:~/.local/bin
 ```
 
-## Activating the environment
+### Activating the environment
 If the installtion folder was specified as `~/fenics`, the proper environment can be activated by
 ```
 source ~/fenics/fenics_env/bin/activate
