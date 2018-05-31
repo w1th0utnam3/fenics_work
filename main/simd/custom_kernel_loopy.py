@@ -130,7 +130,7 @@ def build_loopy_kernel_A_auto():
     data += [arg for arg in lp_args.values()]
     data += [lp.ValueArg(param) for param in ["n", "m"]]
 
-    # Build the kernel instruction
+    # Build the kernel instruction: computation and assignment of the element matrix
     def build_ass():
         """
         A[i,j] = c*sum(k, B[k,i]*B[k,j])
