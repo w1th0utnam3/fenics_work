@@ -10,6 +10,9 @@ import cffi
 import importlib
 import loopy as lp
 
+import islpy as isl
+import pymbolic.primitives as pb
+
 import utils
 
 
@@ -64,7 +67,7 @@ void tabulate_tensor_b(double* b, double** w, double* coords, int cell_orientati
 """
 
 
-def build_loopy_kernel_A():
+def build_loopy_kernel_A_text():
     knl_name = "kernel_tensor_A"
 
     knl = lp.make_kernel(
@@ -93,7 +96,93 @@ def build_loopy_kernel_A():
     return knl_name, knl_call, knl_c, knl_h
 
 
-def build_loopy_kernel_b():
+def build_loopy_kernel_A_auto():
+    knl_name = "kernel_tensor_A"
+
+    arg_names = ["A", "B", "c"]
+    param_names = ["n", "m"]
+    iname_names = ["i", "j", "k"]
+    loops = [("i", "n"), ("j", "n"), ("k", "m")]
+
+    isl_domains = []
+    for idx, extent in loops:
+        # Create dict of loop variables (inames) and parameters
+        vs = isl.make_zero_and_vars([idx], [extent])
+        # Create the loop domain using '<=' and '>' restrictions
+        isl_domains.append(((vs[0].le_set(vs[idx])) & (vs[idx].lt_set(vs[0] + vs[extent]))))
+
+    print("ISL loop domains:")
+    print(isl_domains)
+    print("")
+
+    # Generate pymbolic variables for all symbols
+    args = {arg : pb.Variable(arg) for arg in arg_names}
+    params = {param : pb.Variable(param) for param in param_names}
+    inames = {iname : pb.Variable(iname) for iname in iname_names}
+
+    # Input arguments for the loopy kernel
+    lp_args = {"A": lp.GlobalArg("A", dtype=np.double, shape=(params["n"], params["n"])),
+               "B": lp.GlobalArg("B", dtype=np.double, shape=(params["m"], params["n"])),
+               "c": lp.ValueArg("c", dtype=np.double)}
+
+    # Generate the list of arguments & parameters for loopy
+    data = []
+    data += [arg for arg in lp_args.values()]
+    data += [lp.ValueArg(param) for param in ["n", "m"]]
+
+    # Build the kernel instruction
+    def build_ass():
+        """
+        A[i,j] = c*sum(k, B[k,i]*B[k,j])
+        """
+
+        # The target of the assignment
+        target = pb.Subscript(args["A"], (inames["i"], inames["j"]))
+
+        # The rhs expression: A reduce operation of the matrix columns
+        # Maybe replace with manual increment?
+        reduce_op = lp.library.reduction.SumReductionOperation()
+        reduce_expr = pb.Subscript(args["B"], (inames["k"], inames["i"])) * pb.Subscript(args["B"], (inames["k"], inames["j"]))
+        expr = args["c"]*lp.Reduction(reduce_op, inames["k"], reduce_expr)
+
+        return lp.Assignment(target, expr)
+
+    ass = build_ass()
+    print("Assignment expression:")
+    print(ass)
+    print("")
+
+    # Construct the kernel
+    knl = lp.make_kernel(
+        isl_domains,
+        [ass],
+        data,
+        name=knl_name,
+        assumptions="n >= 1 and m >= 1",
+        lang_version=lp.MOST_RECENT_LANGUAGE_VERSION,
+        target=lp.CTarget())
+
+    knl = lp.fix_parameters(knl, n=3, m=2)
+    knl = lp.prioritize_loops(knl, "i,j")
+    print(knl)
+    print("")
+
+    # Generate kernel code
+    knl_c, knl_h = lp.generate_code_v2(knl).device_code(), str(lp.generate_header(knl)[0])
+    print(knl_c)
+    print("")
+
+    # Postprocess kernel code
+    replacements = [("__restrict__", "restrict")]
+    knl_c = utils.replace_strings(knl_c, replacements)
+    knl_h = utils.replace_strings(knl_h, replacements)
+
+    knl_call = "kernel_tensor_A(A, &B[0][0], 1.0/(2.0*Ae));"
+
+    return knl_name, knl_call, knl_c, knl_h
+
+
+def build_loopy_kernel_b_text():
     knl_name = "kernel_tensor_b"
 
     knl = lp.make_kernel(
@@ -159,10 +248,10 @@ def build_manual_kernel_b():
 
 def compile_kernels(module_name: str, verbose: bool = False):
     # Build loopy kernels
-    knl_A_name, knl_A_call, knl_A_c, knl_A_h = build_loopy_kernel_A()
-    knl_b_name, knl_b_call, knl_b_c, knl_b_h = build_loopy_kernel_b()
+    knl_A_name, knl_A_call, knl_A_c, knl_A_h = build_loopy_kernel_A_auto()
+    knl_b_name, knl_b_call, knl_b_c, knl_b_h = build_loopy_kernel_b_text()
 
-    # Glue together all parts of the kernel
+    # Glue together all parts of the assembly code
     assembly_c = knl_A_c + "\n" + knl_b_c + "\n" + TABULATE_C
     assembly_c = utils.replace_strings(assembly_c, [(f"//{knl_A_name}", knl_A_call), (f"//{knl_b_name}", knl_b_call)])
     assembly_h = knl_A_h + knl_b_h + TABULATE_H
