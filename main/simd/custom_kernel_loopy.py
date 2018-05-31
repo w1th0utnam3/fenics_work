@@ -161,9 +161,8 @@ def build_loopy_kernel_A_auto():
         [ass],
         data,
         name=knl_name,
-        assumptions="n >= 1 and m >= 1",
-        lang_version=lp.MOST_RECENT_LANGUAGE_VERSION,
-        target=lp.CTarget())
+        target=lp.CTarget(),
+        lang_version=lp.MOST_RECENT_LANGUAGE_VERSION)
 
     knl = lp.fix_parameters(knl, n=3, m=2)
     knl = lp.prioritize_loops(knl, "i,j")
