@@ -14,7 +14,7 @@ import islpy as isl
 import pymbolic.primitives as pb
 
 import utils
-
+import time
 
 # C code for Poisson tensor tabulation
 TABULATE_C = """
@@ -155,10 +155,12 @@ def build_loopy_kernel_A_auto():
     print(ass)
     print("")
 
+    instructions = [ass]
+
     # Construct the kernel
     knl = lp.make_kernel(
         isl_domains,
-        [ass],
+        instructions,
         data,
         name=knl_name,
         target=lp.CTarget(),
@@ -269,7 +271,7 @@ def compile_kernels(module_name: str, verbose: bool = False):
 
 def assembly():
     # Whether to use custom kernels instead of FFC
-    useCustomKernels = True
+    useCustomKernels = False
 
     mesh = UnitSquareMesh(MPI.comm_world, 13, 13)
     Q = FunctionSpace(mesh, "Lagrange", 1)
@@ -291,11 +293,11 @@ def assembly():
     fnA_ptr = ffi.cast("uintptr_t", ffi.addressof(lib, "tabulate_tensor_A"))
     fnB_ptr = ffi.cast("uintptr_t", ffi.addressof(lib, "tabulate_tensor_b"))
 
-    # Configure Forms to use own tabulate functions
-    a.set_cell_tabulate(0, fnA_ptr)
-    L.set_cell_tabulate(0, fnB_ptr)
-
-    if not useCustomKernels:
+    if useCustomKernels:
+        # Configure Forms to use own tabulate functions
+        a.set_cell_tabulate(0, fnA_ptr)
+        L.set_cell_tabulate(0, fnB_ptr)
+    else:
         # Use FFC
         ufc_form = ffc_jit(dot(grad(u), grad(v)) * dx)
         ufc_form = cpp.fem.make_ufc_form(ufc_form[0])
@@ -304,11 +306,15 @@ def assembly():
         ufc_form = cpp.fem.make_ufc_form(ufc_form[0])
         L = cpp.fem.Form(ufc_form, [Q._cpp_object])
 
+    start = time.time()
     assembler = cpp.fem.Assembler([[a]], [L], [])
     A = PETScMatrix(MPI.comm_world)
     b = PETScVector()
     assembler.assemble(A, cpp.fem.Assembler.BlockType.monolithic)
     assembler.assemble(b, cpp.fem.Assembler.BlockType.monolithic)
+    end = time.time()
+
+    print(f"Time for assembly: {(end-start)*1000.0}ms")
 
     Anorm = A.norm(cpp.la.Norm.frobenius)
     bnorm = b.norm(cpp.la.Norm.l2)
