@@ -70,9 +70,10 @@ def build_loopy_kernel_A():
     knl = lp.make_kernel(
         "{ [i,j,k]: 0<=i,j<n and 0<=k<m }",
         """
-            A[n*i + j] = c*sum(k, B[n*k + i]*B[n*k + j])
+            A[i,j] = c*sum(k, B[k,i]*B[k,j])
         """,
         name=knl_name,
+        assumptions="n >= 1 and m >= 1",
         lang_version=lp.MOST_RECENT_LANGUAGE_VERSION,
         target=lp.CTarget())
 
