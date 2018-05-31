@@ -99,11 +99,14 @@ def build_loopy_kernel_A_text():
 def build_loopy_kernel_A_auto():
     knl_name = "kernel_tensor_A"
 
+    # Inputs to the kernel
     arg_names = ["A", "B", "c"]
+    # Kernel parameters that will be fixed later
     param_names = ["n", "m"]
-    iname_names = ["i", "j", "k"]
+    # Tuples of inames and extents of their loops
     loops = [("i", "n"), ("j", "n"), ("k", "m")]
 
+    # Generate the domains for the loops
     isl_domains = []
     for idx, extent in loops:
         # Create dict of loop variables (inames) and parameters
@@ -115,17 +118,17 @@ def build_loopy_kernel_A_auto():
     print(isl_domains)
     print("")
 
-    # Generate pymbolic variables for all symbols
+    # Generate pymbolic variables for all used symbols
     args = {arg : pb.Variable(arg) for arg in arg_names}
     params = {param : pb.Variable(param) for param in param_names}
-    inames = {iname : pb.Variable(iname) for iname in iname_names}
+    inames = {iname : pb.Variable(iname) for iname, extent in loops}
 
     # Input arguments for the loopy kernel
     lp_args = {"A": lp.GlobalArg("A", dtype=np.double, shape=(params["n"], params["n"])),
                "B": lp.GlobalArg("B", dtype=np.double, shape=(params["m"], params["n"])),
                "c": lp.ValueArg("c", dtype=np.double)}
 
-    # Generate the list of arguments & parameters for loopy
+    # Generate the list of arguments & parameters that will be passed to loopy
     data = []
     data += [arg for arg in lp_args.values()]
     data += [lp.ValueArg(param) for param in ["n", "m"]]
