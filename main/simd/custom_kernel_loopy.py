@@ -284,7 +284,7 @@ def assembly():
 
     # Compile the Poisson kernel using CFFI
     kernel_name = "_poisson_kernel"
-    compile_kernels(kernel_name)
+    compile_kernels(kernel_name, verbose=True)
     # Import the compiled kernel
     kernel_mod = importlib.import_module(kernel_name)
     ffi, lib = kernel_mod.ffi, kernel_mod.lib
@@ -308,7 +308,7 @@ def assembly():
 
     start = time.time()
     assembler = cpp.fem.Assembler([[a]], [L], [])
-    A = PETScMatrix(MPI.comm_world)
+    A = PETScMatrix()
     b = PETScVector()
     assembler.assemble(A, cpp.fem.Assembler.BlockType.monolithic)
     assembler.assemble(b, cpp.fem.Assembler.BlockType.monolithic)
