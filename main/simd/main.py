@@ -7,17 +7,17 @@ if check_install.check("/local/fenics_work/main") != 0:
 
 import simple_examples
 import loopy_cffi
-import custom_kernel
-import custom_kernel_loopy
+import poisson_2d.custom_kernel
+import poisson_2d.custom_kernel_loopy
+import poisson_3d.custom_kernel_loopy_3d_simple
+import poisson_3d.poisson_blog_post_c
 
 
 def main():
     #simple_examples.loopy_example()
     #simple_examples.poisson_example()
 
-    #loopy_cffi.run_example()
-    #custom_kernel.run_example()
-    custom_kernel_loopy.run_example()
+    poisson_3d.poisson_blog_post_c.run_example()
 
     return
 

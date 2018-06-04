@@ -1,7 +1,8 @@
 import os
+import sys
 import inspect
 import subprocess
-
+import shutil
 
 def check(source_dir: str):
     '''Checks whether all required packages are installed and installs them if necessary.'''
@@ -41,7 +42,34 @@ def check(source_dir: str):
     return len(missing)
 
 
+def clean(source_dir: str):
+    '''Removes existing .egg and build directories.'''
+
+    if not os.path.exists(source_dir):
+        raise RuntimeError(f"Package src folder '{source_dir}' does not exist!")
+
+    print("Removing existing .egg folders")
+
+    folders = ["dolfinx/python/build",
+               "dolfinx/python/fenics_dolfin.egg-info",
+               "dijitso/fenics_dijitso.egg-info",
+               "ffcx/fenics_ffc.egg-info",
+               "fiat/fenics_fiat.egg-info",
+               "loopy/loo.py.egg-info",
+               "ufl/fenics_ufl.egg-info"]
+
+    for folder in folders:
+        print(f"Removing '{folder}'...")
+        shutil.rmtree(os.path.join(source_dir, folder), ignore_errors=True)
+
+    print("Done.")
+
+
 if __name__ == '__main__':
     # If this script is directly run, assume packages are located one dir higher
     script_dir = os.path.dirname(inspect.getfile(inspect.currentframe()))
+
+    if len(sys.argv) > 1 and sys.argv[1] == "-c":
+        clean(os.path.join(script_dir, "../"))
+
     check(os.path.join(script_dir, "../"))
