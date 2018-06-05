@@ -25,7 +25,7 @@ void tabulate_tensor_A(double* A_T, double** w, double* coords, int cell_orienta
     // Reference tensor
     {reference_tensor}
     
-    // Compute geometry tensor G_T
+    // Compute cell geometry tensor G_T
     double G_T[9];
     {
         typedef double CoordsMat[4][3];
@@ -131,6 +131,28 @@ def kernel_manual():
             }
         }
     }"""
+
+    return code
+
+
+def kernel_avx():
+    code = """{
+        for (int i = 0; i <= 3; ++i) {
+            for (int j = 0; j <= 3; ++j) {
+                __m256d g1 = _mm256_load_pd(&G_T[0]);
+                __m256d a1 = _mm256_load_pd(&A0[36 * i + 9 * j + 0]);
+                __m256d res1 = _mm256_mul_pd(g1, a1);
+
+                __m256d g2 = _mm256_load_pd(&G_T[4]);
+                __m256d a2 = _mm256_load_pd(&A0[36 * i + 9 * j + 4]);
+                __m256d res2 = _mm256_fmadd_pd(g2, a2, res1);
+                __m256d res3 = _mm256_hadd_pd(res2, res2);
+
+                A_T[4 * i + j] = ((double*)&res3)[0] + ((double*)&res3)[2] + A0[36 * i + 9 * j + 8]*G_T[8];
+            }
+        }    
+    }"""
+
     return code
 
 
@@ -185,7 +207,7 @@ def kernel_loopy():
         # The target of the assignment
         target = pb.Subscript(A_T, (i, j))
 
-        # The rhs expression: Forbenius inner product <A0[i,j],G_T>
+        # The rhs expression: Frobenius inner product <A0[i,j],G_T>
         reduce_op = lp.library.reduction.SumReductionOperation()
         reduce_expr = pb.Subscript(A0, (i, j, k)) * pb.Subscript(G_T, (k))
         expr = lp.Reduction(reduce_op, k, reduce_expr)
@@ -210,6 +232,11 @@ def kernel_loopy():
 
     knl = lp.fix_parameters(knl, n=4, m=3*3)
     knl = lp.prioritize_loops(knl, "i,j")
+    #knl = lp.split_array_axis(knl, "G_T", 0, 3)
+    knl = lp.add_padding(knl, "G_T", 0, 8)
+    print("Padding:")
+    print(lp.find_padding_multiple(knl, "G_T", 0, align_bytes=64))
+    print("")
     print(knl)
     print("")
 
@@ -225,7 +252,7 @@ def kernel_loopy():
     return knl_name, knl_c, knl_h
 
 
-def compile_poisson_kernel(module_name: str, verbose: bool = False, useLoopy: bool = True):
+def compile_poisson_kernel(module_name: str, verbose: bool = False, useLoopy: bool = False):
     if useLoopy:
         # Generate kernel using Loopy
         knl_name, knl_c, knl_h = kernel_loopy()
@@ -235,8 +262,8 @@ def compile_poisson_kernel(module_name: str, verbose: bool = False, useLoopy: bo
         knl_sig = knl_h + "\n"
     else:
         # Use hand written kernel
-        knl_call = kernel_manual()
-        knl_impl = ""
+        knl_call = kernel_avx()
+        knl_impl = "#include <immintrin.h>"
         knl_sig = ""
 
     # Concatenate code of kernel and tabulate_tensor functions
@@ -253,7 +280,6 @@ def compile_poisson_kernel(module_name: str, verbose: bool = False, useLoopy: bo
     # Build the kernel
     ffi = cffi.FFI()
     ffi.set_source(module_name, code_c, extra_compile_args=["-O2",
-                                                            "-funroll-loops",
                                                             "-march=native",
                                                             "-mtune=native"])
     ffi.cdef(code_h)
