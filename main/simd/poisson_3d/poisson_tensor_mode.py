@@ -7,6 +7,10 @@ from dolfin.jit.jit import ffc_jit
 import numba as nb
 import numpy as np
 
+import loopy as lp
+import islpy as isl
+import pymbolic.primitives as pb
+
 import cffi
 import importlib
 import itertools
@@ -14,7 +18,7 @@ import itertools
 import time
 
 
-# C code for Poisson tensor tabulation
+# C code for Laplace operator tensor tabulation
 TABULATE_C = """
 void tabulate_tensor_A(double* A_T, double** w, double* coords, int cell_orientation)
 {
@@ -82,12 +86,15 @@ void tabulate_tensor_A(double* A_T, double** w, double* coords, int cell_orienta
 """
 
 
-# C header for Poisson tensor tabulation
+# C header for Laplace operator tensor tabulation
 TABULATE_H = """
 void tabulate_tensor_A(double* A, double** w, double* coords, int cell_orientation);
 """
 
+
 def reference_tensor():
+    """Generates code for the Laplace P1(Tetrahedron) reference tensor"""
+
     gradPhi = np.zeros((4, 3), dtype=np.double)
     gradPhi[0, :] = [-1, -1, -1]
     gradPhi[1, :] = [1, 0, 0]
@@ -109,7 +116,9 @@ def reference_tensor():
     return A0_string
 
 
-def kernel():
+def kernel_manual():
+    """Handwritten cell kernel for the Laplace operator"""
+
     code = """{
         double acc_knl;
         for (int i = 0; i < 4; ++i) {
@@ -125,12 +134,121 @@ def kernel():
     return code
 
 
-def compile_poisson_kernel(module_name: str, verbose: bool = False):
-    code_c = TABULATE_C
-    code_c = code_c.replace("{reference_tensor}", reference_tensor())
-    code_c = code_c.replace("{kernel}", kernel())
+def kernel_loopy():
+    """Generate cell kernel for the Laplace operator using Loopy"""
 
-    code_h = TABULATE_H
+    knl_name = "kernel_tensor_A"
+
+    # Inputs to the kernel
+    arg_names = ["A_T", "A0", "G_T"]
+    # Kernel parameters that will be fixed later
+    param_names = ["n", "m"]
+    # Tuples of inames and extents of their loops
+    loops = [("i", "n"), ("j", "n"), ("k", "m")]
+
+    # Generate the domains for the loops
+    isl_domains = []
+    for idx, extent in loops:
+        # Create dict of loop variables (inames) and parameters
+        vs = isl.make_zero_and_vars([idx], [extent])
+        # Create the loop domain using '<=' and '>' restrictions
+        isl_domains.append(((vs[0].le_set(vs[idx])) & (vs[idx].lt_set(vs[0] + vs[extent]))))
+
+    print("ISL loop domains:")
+    print(isl_domains)
+    print("")
+
+    # Generate pymbolic variables for all used symbols
+    args = {arg: pb.Variable(arg) for arg in arg_names}
+    params = {param: pb.Variable(param) for param in param_names}
+    inames = {iname: pb.Variable(iname) for iname, extent in loops}
+
+    # Input arguments for the loopy kernel
+    n, m = params["n"], params["m"]
+    lp_args = {"A_T": lp.GlobalArg("A_T", dtype=np.double, shape=(n, n)),
+               "A0" : lp.GlobalArg("A0" , dtype=np.double, shape=(n, n, m)),
+               "G_T": lp.GlobalArg("G_T", dtype=np.double, shape=(m))}
+
+    # Generate the list of arguments & parameters that will be passed to loopy
+    data = []
+    data += [arg for arg in lp_args.values()]
+    data += [lp.ValueArg(param) for param in param_names]
+
+    # Build the kernel instruction: computation and assignment of the element matrix
+    def build_ass():
+        #A_T[i,j] = sum(k, A0[i,j,k] * G_T[k]);
+
+        # Get variable symbols for all required variables
+        i,j,k = inames["i"], inames["j"], inames["k"]
+        A_T, A0, G_T = args["A_T"], args["A0"], args["G_T"]
+
+        # The target of the assignment
+        target = pb.Subscript(A_T, (i, j))
+
+        # The rhs expression: Forbenius inner product <A0[i,j],G_T>
+        reduce_op = lp.library.reduction.SumReductionOperation()
+        reduce_expr = pb.Subscript(A0, (i, j, k)) * pb.Subscript(G_T, (k))
+        expr = lp.Reduction(reduce_op, k, reduce_expr)
+
+        return lp.Assignment(target, expr)
+
+    ass = build_ass()
+    print("Assignment expression:")
+    print(ass)
+    print("")
+
+    instructions = [ass]
+
+    # Construct the kernel
+    knl = lp.make_kernel(
+        isl_domains,
+        instructions,
+        data,
+        name=knl_name,
+        target=lp.CTarget(),
+        lang_version=lp.MOST_RECENT_LANGUAGE_VERSION)
+
+    knl = lp.fix_parameters(knl, n=4, m=3*3)
+    knl = lp.prioritize_loops(knl, "i,j")
+    print(knl)
+    print("")
+
+    # Generate kernel code
+    knl_c, knl_h = lp.generate_code_v2(knl).device_code(), str(lp.generate_header(knl)[0])
+    print(knl_c)
+    print("")
+
+    # Postprocess kernel code
+    knl_c = knl_c.replace("__restrict__", "restrict")
+    knl_h = knl_h.replace("__restrict__", "restrict")
+
+    return knl_name, knl_c, knl_h
+
+
+def compile_poisson_kernel(module_name: str, verbose: bool = False, useLoopy: bool = True):
+    if useLoopy:
+        # Generate kernel using Loopy
+        knl_name, knl_c, knl_h = kernel_loopy()
+
+        knl_call = f"{knl_name}(A_T, &A0[0], &G_T[0]);"
+        knl_impl = knl_c + "\n"
+        knl_sig = knl_h + "\n"
+    else:
+        # Use hand written kernel
+        knl_call = kernel_manual()
+        knl_impl = ""
+        knl_sig = ""
+
+    # Concatenate code of kernel and tabulate_tensor functions
+    code_c = knl_impl
+    code_c += TABULATE_C
+    # Insert code of reference tensor
+    code_c = code_c.replace("{reference_tensor}", reference_tensor())
+    # Insert code to execute kernel
+    code_c = code_c.replace("{kernel}", knl_call)
+
+    code_h = knl_sig
+    code_h += TABULATE_H
 
     # Build the kernel
     ffi = cffi.FFI()
@@ -302,8 +420,8 @@ def solve():
     solver.solve(u.vector(), b)
 
     # Export result
-    file = XDMFFile(MPI.comm_world, "poisson_3d.xdmf")
-    file.write(u, XDMFFile.Encoding.HDF5)
+    #file = XDMFFile(MPI.comm_world, "poisson_3d.xdmf")
+    #file.write(u, XDMFFile.Encoding.HDF5)
 
 
 def run_example():
