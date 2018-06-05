@@ -9,78 +9,73 @@ import numpy as np
 
 import cffi
 import importlib
+import itertools
 
 import time
 
 
 # C code for Poisson tensor tabulation
 TABULATE_C = """
-void tabulate_tensor_A(double* A_mat, double** w, double* coords, int cell_orientation)
+void tabulate_tensor_A(double* A_T, double** w, double* coords, int cell_orientation)
 {
-    typedef double CoordsMat[4][3];
-    CoordsMat* coordinate_dofs = (CoordsMat*)coords;
-
-    const double* x0 = &((*coordinate_dofs)[0][0]);
-    const double* x1 = &((*coordinate_dofs)[1][0]);
-    const double* x2 = &((*coordinate_dofs)[2][0]);
-    const double* x3 = &((*coordinate_dofs)[3][0]);
-
-    // Entries of transformation matrix B
-    const double a = x1[0] - x0[0];
-    const double b = x2[0] - x0[0];
-    const double c = x3[0] - x0[0];
-    const double d = x1[1] - x0[1];
-    const double e = x2[1] - x0[1];
-    const double f = x3[1] - x0[1];
-    const double g = x1[2] - x0[2];
-    const double h = x2[2] - x0[2];
-    const double i = x3[2] - x0[2];
-
-    // Invert B
-    // Computation according to https://en.wikipedia.org/wiki/Invertible_matrix#Inversion_of_3_%C3%97_3_matrices
-    const double A =  (e*i - f*h);
-    const double B = -(d*i - f*g);
-    const double C =  (d*h - e*g);
-    const double D = -(b*i - c*h);
-    const double E =  (a*i - c*g);
-    const double F = -(a*h - b*g);
-    const double G =  (b*f - c*e);
-    const double H = -(a*f - c*d);
-    const double I =  (a*e - b*d);
-
-    const double detB = a*A + b*B + c*C;
-    const double detB_inv = 1.0/detB;
-
-    const double Binv[3][3] = {{detB_inv*A, detB_inv*D, detB_inv*G}, 
-                               {detB_inv*B, detB_inv*E, detB_inv*H},
-                               {detB_inv*C, detB_inv*F, detB_inv*I}};
-
-    static const double gradPhi[4][3] = {{-1, -1, -1}, 
-                                         { 1,  0,  0},
-                                         { 0,  1,  0},
-                                         { 0,  0,  1}};
-
-    // Bphi = G*B^-1
-    double Bphi[4][3];
-    for (int i = 0; i < 4; ++i) {
-        for (int j = 0; j < 3; ++j) {
-            Bphi[i][j] = 0;
-            for (int k = 0; k < 3; ++k) {
-                Bphi[i][j] += gradPhi[i][k]*Binv[k][j];
+    // Reference tensor
+    {reference_tensor}
+    
+    // Compute geometry tensor G_T
+    double G_T[9];
+    {
+        typedef double CoordsMat[4][3];
+        CoordsMat* coordinate_dofs = (CoordsMat*)coords;
+    
+        const double* x0 = &((*coordinate_dofs)[0][0]);
+        const double* x1 = &((*coordinate_dofs)[1][0]);
+        const double* x2 = &((*coordinate_dofs)[2][0]);
+        const double* x3 = &((*coordinate_dofs)[3][0]);
+    
+        // Entries of transformation matrix B
+        const double a = x1[0] - x0[0];
+        const double b = x2[0] - x0[0];
+        const double c = x3[0] - x0[0];
+        const double d = x1[1] - x0[1];
+        const double e = x2[1] - x0[1];
+        const double f = x3[1] - x0[1];
+        const double g = x1[2] - x0[2];
+        const double h = x2[2] - x0[2];
+        const double i = x3[2] - x0[2];
+    
+        // Entries of inverse, transposed transformation matrix
+        const double inv[9] = {
+              (e*i - f*h),
+             -(d*i - f*g),
+              (d*h - e*g),
+             -(b*i - c*h),
+              (a*i - c*g),
+             -(a*h - b*g),
+              (b*f - c*e),
+             -(a*f - c*d),
+              (a*e - b*d)
+        };
+    
+        const double detB = fabs(a*inv[0] + b*inv[1] + c*inv[2]);
+        const double detB_inv2 = 1.0/(detB*detB);
+        
+        // G_T = Binv*Binv^T
+        {
+            double acc_G;
+            for (int i = 0; i < 3; ++i) {
+                for (int j = 0; j < 3; ++j) {
+                    acc_G = 0;
+                    for (int k = 0; k < 3; ++k) {
+                        acc_G += inv[i + k*3]*inv[j + k*3];
+                    }
+                    G_T[i*3 + j] = detB*detB_inv2*acc_G;
+                }
             }
         }
     }
-
-    // A = vol*Bphi*Bphi^T
-    const double vol = (fabs(detB)/6.0);
-    for (int i = 0; i < 4; ++i) {
-        for (int j = 0; j < 4; ++j) {
-            A_mat[4*i + j] = 0;
-            for (int k = 0; k < 3; ++k) {
-                A_mat[4*i + j] += vol*Bphi[i][k]*Bphi[j][k];
-            }
-        }
-    }
+    
+    // Apply kernel
+    {kernel}
 
     return;
 }
@@ -91,6 +86,60 @@ void tabulate_tensor_A(double* A_mat, double** w, double* coords, int cell_orien
 TABULATE_H = """
 void tabulate_tensor_A(double* A, double** w, double* coords, int cell_orientation);
 """
+
+def reference_tensor():
+    gradPhi = np.zeros((4, 3), dtype=np.double)
+    gradPhi[0, :] = [-1, -1, -1]
+    gradPhi[1, :] = [1, 0, 0]
+    gradPhi[2, :] = [0, 1, 0]
+    gradPhi[3, :] = [0, 0, 1]
+
+    A0 = np.zeros((4,4,3,3), dtype=np.double)
+    for i in range(4):
+        for j in range(4):
+            A0[i,j,:,:] = (1.0/6.0)*np.outer(gradPhi[i,:], gradPhi[j,:])
+
+    # Eliminate negative zeros
+    A0[A0 == 0] = 0
+
+    A0_string = f"static const double A0[{A0.size}] = {{\n#\n}};"
+    numbers = ",\n".join([", ".join([str(x) for x in A0[i,j,:,:].flatten()]) for i,j in itertools.product(range(4),range(4))])
+    A0_string = A0_string.replace("#", numbers)
+
+    return A0_string
+
+
+def kernel():
+    code = """{
+        double acc_knl;
+        for (int i = 0; i < 4; ++i) {
+            for (int j = 0; j < 4; ++j) {
+                acc_knl = 0;
+                for (int k = 0; k < 9; ++k) {
+                    acc_knl += A0[i*4*9 + j*9 + k] * G_T[k];
+                }
+                A_T[i*4 + j] = acc_knl;
+            }
+        }
+    }"""
+    return code
+
+
+def compile_poisson_kernel(module_name: str, verbose: bool = False):
+    code_c = TABULATE_C
+    code_c = code_c.replace("{reference_tensor}", reference_tensor())
+    code_c = code_c.replace("{kernel}", kernel())
+
+    code_h = TABULATE_H
+
+    # Build the kernel
+    ffi = cffi.FFI()
+    ffi.set_source(module_name, code_c, extra_compile_args=["-O2",
+                                                            "-funroll-loops",
+                                                            "-march=native",
+                                                            "-mtune=native"])
+    ffi.cdef(code_h)
+    ffi.compile(verbose=verbose)
 
 
 def tabulate_tensor_A(A_, w_, coords_, cell_orientation):
@@ -121,9 +170,15 @@ def tabulate_tensor_A(A_, w_, coords_, cell_orientation):
     gradPhi[2, :] = [0, 1, 0]
     gradPhi[3, :] = [0, 0, 1]
 
-    # Compute cell tensor
-    Bphi = gradPhi @ Binv
-    A[:,:] = np.abs(detB)/6.0*(Bphi @ Bphi.transpose())
+    A0 = np.zeros((4, 4, 3, 3), dtype=np.double)
+    for i in range(4):
+        for j in range(4):
+            A0[i, j, :, :] = (1.0 / 6.0) * np.outer(gradPhi[i, :], gradPhi[j, :])
+
+    G = np.abs(detB) * (Binv @ Binv.transpose())
+    for i in range(4):
+        for j in range(4):
+            A[i, j] = np.sum(np.multiply(A0[i, j, :, :], G))
 
 
 def tabulate_tensor_L(b_, w_, coords_, cell_orientation):
@@ -184,12 +239,7 @@ def solve():
     fnL = nb.cfunc(sig, cache=True, nopython=True)(tabulate_tensor_L)
 
     module_name = "_laplace_kernel"
-
-    # Build the kernel
-    ffi = cffi.FFI()
-    ffi.set_source(module_name, TABULATE_C)
-    ffi.cdef(TABULATE_H)
-    ffi.compile()
+    compile_poisson_kernel(module_name, verbose=True)
 
     # Import the compiled kernel
     kernel_mod = importlib.import_module(module_name)
