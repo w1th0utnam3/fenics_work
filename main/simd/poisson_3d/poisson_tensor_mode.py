@@ -21,12 +21,9 @@ import time
 # C code for Laplace operator tensor tabulation
 TABULATE_C = """
 void tabulate_tensor_A(double* A_T, double** w, double* coords, int cell_orientation)
-{
-    // Reference tensor
-    {reference_tensor}
-    
+{    
     // Compute cell geometry tensor G_T
-    double G_T[9];
+    double G_T[9] __attribute__((aligned(32)));
     {
         typedef double CoordsMat[4][3];
         CoordsMat* coordinate_dofs = (CoordsMat*)coords;
@@ -109,11 +106,21 @@ def reference_tensor():
     # Eliminate negative zeros
     A0[A0 == 0] = 0
 
-    A0_string = f"static const double A0[{A0.size}] = {{\n#\n}};"
-    numbers = ",\n".join([", ".join([str(x) for x in A0[i,j,:,:].flatten()]) for i,j in itertools.product(range(4),range(4))])
+    A0_flat = A0.reshape((4*4, 3*3))
+    non_zeros = A0_flat != 0
+    nnz = np.sum(non_zeros, axis=1)
+    index_ptrs = np.tile(np.arange(9), (4*4,1))[non_zeros]
+    vals = A0_flat[non_zeros]
+
+    vals_string = f"static const double A0_entries[{vals.size}] __attribute__((aligned(32))) = {{\n#\n}};".replace("#", ", ".join(str(x) for x in vals))
+    nnz_string = f"static const int A0_nnz[{nnz.size}] = {{\n#\n}};".replace("#", ", ".join(str(x) for x in nnz))
+    ptrs_string = f"static const int A0_idx[{index_ptrs.size}] = {{\n#\n}};".replace("#", ", ".join(str(x) for x in index_ptrs))
+
+    A0_string = f"static const double A0[{A0.size}] __attribute__((aligned(32))) = {{\n#\n}};"
+    numbers = ",\n".join(", ".join(str(x) for x in A0[i,j,:,:].flatten()) for i,j in itertools.product(range(4),range(4)))
     A0_string = A0_string.replace("#", numbers)
 
-    return A0_string
+    return "\n".join([f"#define A0_NNZ {vals.size}", nnz_string, vals_string, ptrs_string, A0_string])
 
 
 def kernel_manual():
@@ -135,31 +142,88 @@ def kernel_manual():
     return code
 
 
-def kernel_avx():
-    code = """{
-        for (int i = 0; i <= 3; ++i) {
-            for (int j = 0; j <= 3; ++j) {
-                __m256d g1 = _mm256_load_pd(&G_T[0]);
-                __m256d a1 = _mm256_load_pd(&A0[36 * i + 9 * j + 0]);
-                __m256d res1 = _mm256_mul_pd(g1, a1);
+def kernel_avx(knl_name: str):
+    code = """
+#include <immintrin.h>
+void {knl_name}(double *restrict A_T, 
+                     double const *restrict A0, 
+                     double const *restrict G_T)
+{
+    for (int i = 0; i <= 3; ++i) {
+        for (int j = 0; j <= 3; ++j) {
+            __m256d g1 = _mm256_load_pd(&G_T[0]);
+            __m256d a1 = _mm256_load_pd(&A0[36 * i + 9 * j + 0]);
+            __m256d res1 = _mm256_mul_pd(g1, a1);
 
-                __m256d g2 = _mm256_load_pd(&G_T[4]);
-                __m256d a2 = _mm256_load_pd(&A0[36 * i + 9 * j + 4]);
-                __m256d res2 = _mm256_fmadd_pd(g2, a2, res1);
-                __m256d res3 = _mm256_hadd_pd(res2, res2);
+            __m256d g2 = _mm256_load_pd(&G_T[4]);
+            __m256d a2 = _mm256_load_pd(&A0[36 * i + 9 * j + 4]);
+            __m256d res2 = _mm256_fmadd_pd(g2, a2, res1);
+            __m256d res3 = _mm256_hadd_pd(res2, res2);
 
-                A_T[4 * i + j] = ((double*)&res3)[0] + ((double*)&res3)[2] + A0[36 * i + 9 * j + 8]*G_T[8];
-            }
-        }    
-    }"""
+            A_T[4 * i + j] = ((double*)&res3)[0] + ((double*)&res3)[2] + A0[36 * i + 9 * j + 8]*G_T[8];
+        }
+    }    
+}""".replace("{knl_name}", knl_name)
 
-    return code
+    header = """void {knl_name}(double *restrict A_T, 
+                                    double const *restrict A0, 
+                                    double const *restrict G_T);
+        """.replace("{knl_name}", knl_name)
+
+    return code, header
 
 
-def kernel_loopy():
+def kernel_broadcast(knl_name: str):
+    code = """
+#include <immintrin.h>
+void {knl_name}(double *restrict A_T, 
+                     double const *restrict A0_entries,
+                     int const *restrict A0_idx,
+                     int const *restrict A0_nnz, 
+                     double const *restrict G_T)
+{
+    double G_T_broadcasted[A0_NNZ] __attribute__((aligned(32)));
+    for (int i = 0; i < A0_NNZ; ++i) {
+        G_T_broadcasted[i] = G_T[A0_idx[i]];
+    }
+    
+    // Multiply
+    //#define PADDED (A0_NNZ + ((-A0_NNZ) % 4))
+    double A_T_scattered[A0_NNZ] __attribute__((aligned(32)));
+    for (int i = 0; i < A0_NNZ; i+=4) {
+        __m256d a0 = _mm256_load_pd(&A0_entries[i]);
+        __m256d g = _mm256_load_pd(&G_T_broadcasted[i]);
+        __m256d res = _mm256_mul_pd(a0, g);
+        _mm256_store_pd(&A_T_scattered[i], res);
+    }
+    
+    // Reduce
+    double acc_A;
+    double* curr_val = &A_T_scattered[0];
+    for (int i = 0; i < 16; ++i) {
+        acc_A = 0;
+        
+        const double* end = curr_val + A0_nnz[i];
+        for (; curr_val != end; ++curr_val) {
+            acc_A += *(curr_val);
+        }
+        
+        A_T[i] = acc_A;
+    }
+}""".replace("{knl_name}", knl_name)
+
+    header = """void {knl_name}(double *restrict A_T, 
+                                double const *restrict A0_entries,
+                                int const *restrict A0_idx,
+                                int const *restrict A0_nnz, 
+                                double const *restrict G_T);
+    """.replace("{knl_name}", knl_name)
+
+    return code, header
+
+
+def kernel_loopy(knl_name: str):
     """Generate cell kernel for the Laplace operator using Loopy"""
-
-    knl_name = "kernel_tensor_A"
 
     # Inputs to the kernel
     arg_names = ["A_T", "A0", "G_T"]
@@ -232,10 +296,6 @@ def kernel_loopy():
 
     knl = lp.fix_parameters(knl, n=4, m=3*3)
     knl = lp.prioritize_loops(knl, "i,j")
-    #knl = lp.split_array_axis(knl, "G_T", 0, 3)
-    knl = lp.add_padding(knl, "G_T", 0, 8)
-    print("Padding:")
-    print(lp.find_padding_multiple(knl, "G_T", 0, align_bytes=64))
     print("")
     print(knl)
     print("")
@@ -249,28 +309,45 @@ def kernel_loopy():
     knl_c = knl_c.replace("__restrict__", "restrict")
     knl_h = knl_h.replace("__restrict__", "restrict")
 
-    return knl_name, knl_c, knl_h
+    return knl_c, knl_h
 
 
-def compile_poisson_kernel(module_name: str, verbose: bool = False, useLoopy: bool = False):
-    if useLoopy:
-        # Generate kernel using Loopy
-        knl_name, knl_c, knl_h = kernel_loopy()
+def compile_poisson_kernel(module_name: str, verbose: bool = False):
+    knl_name = "kernel_tensor_A"
+
+    def useLoopy():
+        knl_c, knl_h = kernel_loopy(knl_name)
 
         knl_call = f"{knl_name}(A_T, &A0[0], &G_T[0]);"
         knl_impl = knl_c + "\n"
         knl_sig = knl_h + "\n"
-    else:
+
+        return knl_call, knl_impl, knl_sig
+
+    def useManualAVX():
+        knl_c, knl_h = kernel_avx(knl_name)
+
         # Use hand written kernel
-        knl_call = kernel_avx()
-        knl_impl = "#include <immintrin.h>"
-        knl_sig = ""
+        knl_call = f"{knl_name}(A_T, &A0[0], &G_T[0]);"
+        knl_impl = knl_c + "\n"
+        knl_sig = knl_h + "\n"
+
+        return knl_call, knl_impl, knl_sig
+
+    def useManualBroadcasted():
+        knl_c, knl_h = kernel_broadcast(knl_name)
+
+        # Use hand written kernel
+        knl_call = f"{knl_name}(A_T, &A0_entries[0], &A0_idx[0], &A0_nnz[0], &G_T[0]);"
+        knl_impl = knl_c + "\n"
+        knl_sig = knl_h + "\n"
+
+        return knl_call, knl_impl, knl_sig
+
+    knl_call, knl_impl, knl_sig = useManualAVX()
 
     # Concatenate code of kernel and tabulate_tensor functions
-    code_c = knl_impl
-    code_c += TABULATE_C
-    # Insert code of reference tensor
-    code_c = code_c.replace("{reference_tensor}", reference_tensor())
+    code_c = "\n".join([reference_tensor(), knl_impl, TABULATE_C])
     # Insert code to execute kernel
     code_c = code_c.replace("{kernel}", knl_call)
 
@@ -437,6 +514,8 @@ def solve():
     # Norms obtained with FFC and n=13
     assert (np.isclose(Anorm, 60.86192203436385))
     assert (np.isclose(bnorm, 0.018075523965828778))
+
+    return
 
     comm = L.mesh().mpi_comm()
     solver = PETScKrylovSolver(comm)
