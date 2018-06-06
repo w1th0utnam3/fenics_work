@@ -316,6 +316,7 @@ def compile_poisson_kernel(module_name: str, verbose: bool = False):
     knl_name = "kernel_tensor_A"
 
     def useLoopy():
+        print("Using Loopy generated kernel")
         knl_c, knl_h = kernel_loopy(knl_name)
 
         knl_call = f"{knl_name}(A_T, &A0[0], &G_T[0]);"
@@ -325,6 +326,7 @@ def compile_poisson_kernel(module_name: str, verbose: bool = False):
         return knl_call, knl_impl, knl_sig
 
     def useManualAVX():
+        print("Using manual naive AVX kernel")
         knl_c, knl_h = kernel_avx(knl_name)
 
         # Use hand written kernel
@@ -335,6 +337,7 @@ def compile_poisson_kernel(module_name: str, verbose: bool = False):
         return knl_call, knl_impl, knl_sig
 
     def useManualBroadcasted():
+        print("Using manual 'broadcasted' AVX kernel")
         knl_c, knl_h = kernel_broadcast(knl_name)
 
         # Use hand written kernel
@@ -427,6 +430,27 @@ def tabulate_tensor_L(b_, w_, coords_, cell_orientation):
     b[:] = f * (vol / 4.0)
 
 
+def timing(n_runs: int, callable_in):
+    lower = np.inf
+    upper = -np.inf
+    avg = 0
+
+    # Call once without measurement "to get warm"
+    callable_in()
+    for i in range(n_runs):
+        start = time.time()
+        callable_in()
+        end = time.time()
+
+        diff = end - start
+
+        lower = min(lower, diff)
+        upper = max(upper, diff)
+        avg += (diff - avg)/(i+1)
+
+    return avg, lower, upper
+
+
 def solve():
     # Whether to use custom Numba kernels instead of FFC
     useCustomKernels = True
@@ -497,15 +521,16 @@ def solve():
     A = PETScMatrix()
     b = PETScVector()
 
-    # Perform assembly
-    start = time.time()
-    assembler.assemble(A, dolfin.cpp.fem.Assembler.BlockType.monolithic)
-    end = time.time()
+    # Callable that performs assembly of matrix
+    assembly_callable = lambda : assembler.assemble(A, dolfin.cpp.fem.Assembler.BlockType.monolithic)
+
+    # Get timings for assembly of matrix over several runs
+    n_runs = 10
+    time_avg, time_min, time_max = timing(n_runs, assembly_callable)
+    print(f"Timings for assembly (n={n_runs}) avg: {time_avg*1000}ms, min: {time_min*1000}ms, max: {time_max*1000}ms")
 
     # We don't care about the RHS
     assembler.assemble(b, dolfin.cpp.fem.Assembler.BlockType.monolithic)
-
-    print(f"Time for assembly: {(end-start)*1000.0}ms")
 
     Anorm = A.norm(dolfin.cpp.la.Norm.frobenius)
     bnorm = b.norm(dolfin.cpp.la.Norm.l2)
