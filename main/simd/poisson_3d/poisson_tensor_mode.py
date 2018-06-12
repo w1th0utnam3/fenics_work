@@ -15,13 +15,14 @@ import cffi
 import importlib
 import itertools
 
-import time
+
+import simd.utils as utils
 
 
 # C code for Laplace operator tensor tabulation
 TABULATE_C = """
-void tabulate_tensor_A(double* A_T, double** w, double* coords, int cell_orientation)
-{    
+void tabulate_tensor_A(double* A_T, const double* const* w, double* coords, int cell_orientation)
+{        
     // Compute cell geometry tensor G_T
     double G_T[9] __attribute__((aligned(32)));
     {
@@ -82,10 +83,130 @@ void tabulate_tensor_A(double* A_T, double** w, double* coords, int cell_orienta
 }
 """
 
+TABULATE_C_FFC = """#include <stdalign.h>
+void tabulate_tensor_A(double* restrict A, const double* const* w,
+                       const double* restrict coordinate_dofs,
+                       int cell_orientation)
+{
+    // Precomputed values of basis functions and precomputations
+    // FE* dimensions: [entities][points][dofs]
+    // PI* dimensions: [entities][dofs][dofs] or [entities][dofs]
+    // PM* dimensions: [entities][dofs][dofs]
+    alignas(32) static const double FE8_C0_D001_Q1[1][1][2] = { { { -1.0, 1.0 } } };
+    // Unstructured piecewise computations
+    const double J_c4 = coordinate_dofs[1] * FE8_C0_D001_Q1[0][0][0] + coordinate_dofs[7] * FE8_C0_D001_Q1[0][0][1];
+    const double J_c8 = coordinate_dofs[2] * FE8_C0_D001_Q1[0][0][0] + coordinate_dofs[11] * FE8_C0_D001_Q1[0][0][1];
+    const double J_c5 = coordinate_dofs[1] * FE8_C0_D001_Q1[0][0][0] + coordinate_dofs[10] * FE8_C0_D001_Q1[0][0][1];
+    const double J_c7 = coordinate_dofs[2] * FE8_C0_D001_Q1[0][0][0] + coordinate_dofs[8] * FE8_C0_D001_Q1[0][0][1];
+    const double J_c0 = coordinate_dofs[0] * FE8_C0_D001_Q1[0][0][0] + coordinate_dofs[3] * FE8_C0_D001_Q1[0][0][1];
+    const double J_c1 = coordinate_dofs[0] * FE8_C0_D001_Q1[0][0][0] + coordinate_dofs[6] * FE8_C0_D001_Q1[0][0][1];
+    const double J_c6 = coordinate_dofs[2] * FE8_C0_D001_Q1[0][0][0] + coordinate_dofs[5] * FE8_C0_D001_Q1[0][0][1];
+    const double J_c3 = coordinate_dofs[1] * FE8_C0_D001_Q1[0][0][0] + coordinate_dofs[4] * FE8_C0_D001_Q1[0][0][1];
+    const double J_c2 = coordinate_dofs[0] * FE8_C0_D001_Q1[0][0][0] + coordinate_dofs[9] * FE8_C0_D001_Q1[0][0][1];
+    alignas(32) double sp[80];
+    sp[0] = J_c4 * J_c8;
+    sp[1] = J_c5 * J_c7;
+    sp[2] = sp[0] + -1 * sp[1];
+    sp[3] = J_c0 * sp[2];
+    sp[4] = J_c5 * J_c6;
+    sp[5] = J_c3 * J_c8;
+    sp[6] = sp[4] + -1 * sp[5];
+    sp[7] = J_c1 * sp[6];
+    sp[8] = sp[3] + sp[7];
+    sp[9] = J_c3 * J_c7;
+    sp[10] = J_c4 * J_c6;
+    sp[11] = sp[9] + -1 * sp[10];
+    sp[12] = J_c2 * sp[11];
+    sp[13] = sp[8] + sp[12];
+    sp[14] = sp[2] / sp[13];
+    sp[15] = J_c3 * (-1 * J_c8);
+    sp[16] = sp[4] + sp[15];
+    sp[17] = sp[16] / sp[13];
+    sp[18] = sp[11] / sp[13];
+    sp[19] = sp[14] * sp[14];
+    sp[20] = sp[14] * sp[17];
+    sp[21] = sp[18] * sp[14];
+    sp[22] = sp[17] * sp[17];
+    sp[23] = sp[18] * sp[17];
+    sp[24] = sp[18] * sp[18];
+    sp[25] = J_c2 * J_c7;
+    sp[26] = J_c8 * (-1 * J_c1);
+    sp[27] = sp[25] + sp[26];
+    sp[28] = sp[27] / sp[13];
+    sp[29] = J_c0 * J_c8;
+    sp[30] = J_c6 * (-1 * J_c2);
+    sp[31] = sp[29] + sp[30];
+    sp[32] = sp[31] / sp[13];
+    sp[33] = J_c1 * J_c6;
+    sp[34] = J_c0 * J_c7;
+    sp[35] = sp[33] + -1 * sp[34];
+    sp[36] = sp[35] / sp[13];
+    sp[37] = sp[28] * sp[28];
+    sp[38] = sp[28] * sp[32];
+    sp[39] = sp[28] * sp[36];
+    sp[40] = sp[32] * sp[32];
+    sp[41] = sp[32] * sp[36];
+    sp[42] = sp[36] * sp[36];
+    sp[43] = sp[37] + sp[19];
+    sp[44] = sp[38] + sp[20];
+    sp[45] = sp[39] + sp[21];
+    sp[46] = sp[40] + sp[22];
+    sp[47] = sp[41] + sp[23];
+    sp[48] = sp[24] + sp[42];
+    sp[49] = J_c1 * J_c5;
+    sp[50] = J_c2 * J_c4;
+    sp[51] = sp[49] + -1 * sp[50];
+    sp[52] = sp[51] / sp[13];
+    sp[53] = J_c2 * J_c3;
+    sp[54] = J_c0 * J_c5;
+    sp[55] = sp[53] + -1 * sp[54];
+    sp[56] = sp[55] / sp[13];
+    sp[57] = J_c0 * J_c4;
+    sp[58] = J_c1 * J_c3;
+    sp[59] = sp[57] + -1 * sp[58];
+    sp[60] = sp[59] / sp[13];
+    sp[61] = sp[52] * sp[52];
+    sp[62] = sp[52] * sp[56];
+    sp[63] = sp[60] * sp[52];
+    sp[64] = sp[56] * sp[56];
+    sp[65] = sp[60] * sp[56];
+    sp[66] = sp[60] * sp[60];
+    sp[67] = sp[43] + sp[61];
+    sp[68] = sp[44] + sp[62];
+    sp[69] = sp[45] + sp[63];
+    sp[70] = sp[46] + sp[64];
+    sp[71] = sp[47] + sp[65];
+    sp[72] = sp[48] + sp[66];
+    sp[73] = fabs(sp[13]);
+    sp[74] = sp[67] * sp[73];
+    sp[75] = sp[68] * sp[73];
+    sp[76] = sp[69] * sp[73];
+    sp[77] = sp[70] * sp[73];
+    sp[78] = sp[71] * sp[73];
+    sp[79] = sp[72] * sp[73];
+    A[0] = 0.1666666666666667 * sp[74] + 0.1666666666666667 * sp[75] + 0.1666666666666667 * sp[76] + 0.1666666666666667 * sp[75] + 0.1666666666666667 * sp[77] + 0.1666666666666667 * sp[78] + 0.1666666666666667 * sp[76] + 0.1666666666666667 * sp[78] + 0.1666666666666667 * sp[79];
+    A[1] = -0.1666666666666667 * sp[74] + -0.1666666666666667 * sp[75] + -0.1666666666666667 * sp[76];
+    A[2] = -0.1666666666666667 * sp[75] + -0.1666666666666667 * sp[77] + -0.1666666666666667 * sp[78];
+    A[3] = -0.1666666666666667 * sp[76] + -0.1666666666666667 * sp[78] + -0.1666666666666667 * sp[79];
+    A[4] = -0.1666666666666667 * sp[74] + -0.1666666666666667 * sp[75] + -0.1666666666666667 * sp[76];
+    A[5] = 0.1666666666666667 * sp[74];
+    A[6] = 0.1666666666666667 * sp[75];
+    A[7] = 0.1666666666666667 * sp[76];
+    A[8] = -0.1666666666666667 * sp[75] + -0.1666666666666667 * sp[77] + -0.1666666666666667 * sp[78];
+    A[9] = 0.1666666666666667 * sp[75];
+    A[10] = 0.1666666666666667 * sp[77];
+    A[11] = 0.1666666666666667 * sp[78];
+    A[12] = -0.1666666666666667 * sp[76] + -0.1666666666666667 * sp[78] + -0.1666666666666667 * sp[79];
+    A[13] = 0.1666666666666667 * sp[76];
+    A[14] = 0.1666666666666667 * sp[78];
+    A[15] = 0.1666666666666667 * sp[79];
+}
+"""
+
 
 # C header for Laplace operator tensor tabulation
 TABULATE_H = """
-void tabulate_tensor_A(double* A, double** w, double* coords, int cell_orientation);
+void tabulate_tensor_A(double* A, const double* const* w, double* coords, int cell_orientation);
 """
 
 
@@ -182,17 +303,23 @@ void {knl_name}(double *restrict A_T,
                      int const *restrict A0_nnz, 
                      double const *restrict G_T)
 {
+    /*
     double G_T_broadcasted[A0_NNZ] __attribute__((aligned(32)));
     for (int i = 0; i < A0_NNZ; ++i) {
         G_T_broadcasted[i] = G_T[A0_idx[i]];
     }
+    */
+    
     
     // Multiply
-    //#define PADDED (A0_NNZ + ((-A0_NNZ) % 4))
     double A_T_scattered[A0_NNZ] __attribute__((aligned(32)));
     for (int i = 0; i < A0_NNZ; i+=4) {
         __m256d a0 = _mm256_load_pd(&A0_entries[i]);
-        __m256d g = _mm256_load_pd(&G_T_broadcasted[i]);
+        //__m256d g = _mm256_load_pd(&G_T_broadcasted[i]);
+        __m256d g = _mm256_set_pd(G_T[A0_idx[i+3]], 
+                                  G_T[A0_idx[i+2]], 
+                                  G_T[A0_idx[i+1]], 
+                                  G_T[A0_idx[i]]);
         __m256d res = _mm256_mul_pd(a0, g);
         _mm256_store_pd(&A_T_scattered[i], res);
     }
@@ -313,6 +440,8 @@ def kernel_loopy(knl_name: str):
 
 
 def compile_poisson_kernel(module_name: str, verbose: bool = False):
+    useFFCCode = False
+
     knl_name = "kernel_tensor_A"
 
     def useLoopy():
@@ -347,15 +476,18 @@ def compile_poisson_kernel(module_name: str, verbose: bool = False):
 
         return knl_call, knl_impl, knl_sig
 
-    knl_call, knl_impl, knl_sig = useManualAVX()
+    knl_call, knl_impl, knl_sig = useLoopy()
 
-    # Concatenate code of kernel and tabulate_tensor functions
-    code_c = "\n".join([reference_tensor(), knl_impl, TABULATE_C])
-    # Insert code to execute kernel
-    code_c = code_c.replace("{kernel}", knl_call)
+    if useFFCCode:
+        code_c = TABULATE_C_FFC
+        code_h = TABULATE_H
+    else:
+        # Concatenate code of kernel and tabulate_tensor functions
+        code_c = "\n".join([reference_tensor(), knl_impl, TABULATE_C])
+        # Insert code to execute kernel
+        code_c = code_c.replace("{kernel}", knl_call)
 
-    code_h = knl_sig
-    code_h += TABULATE_H
+        code_h = "\n".join([knl_sig, TABULATE_H])
 
     # Build the kernel
     ffi = cffi.FFI()
@@ -430,34 +562,20 @@ def tabulate_tensor_L(b_, w_, coords_, cell_orientation):
     b[:] = f * (vol / 4.0)
 
 
-def timing(n_runs: int, callable_in):
-    lower = np.inf
-    upper = -np.inf
-    avg = 0
-
-    # Call once without measurement "to get warm"
-    callable_in()
-    for i in range(n_runs):
-        start = time.time()
-        callable_in()
-        end = time.time()
-
-        diff = end - start
-
-        lower = min(lower, diff)
-        upper = max(upper, diff)
-        avg += (diff - avg)/(i+1)
-
-    return avg, lower, upper
-
-
 def solve():
-    # Whether to use custom Numba kernels instead of FFC
-    useCustomKernels = True
+    # Whether to use custom kernels instead of FFC
+    useCustomKernels = False
 
     # Generate a unit cube with (n+1)^3 vertices
-    n = 22
-    mesh = UnitCubeMesh(MPI.comm_world, n, n, n)
+    n = 100
+    mesh = None
+    def generate_mesh():
+        nonlocal mesh
+        mesh = UnitCubeMesh(MPI.comm_world, n, n, n)
+
+    times = utils.timing(1, generate_mesh, warm_up=False)
+    print(f"Time for mesh generation: {times[0]*1000}ms")
+
     Q = FunctionSpace(mesh, "Lagrange", 1)
 
     u = TrialFunction(Q)
@@ -487,7 +605,7 @@ def solve():
     compile_poisson_kernel(module_name, verbose=True)
 
     # Import the compiled kernel
-    kernel_mod = importlib.import_module(module_name)
+    kernel_mod = importlib.import_module(f"simd.{module_name}")
     ffi, lib = kernel_mod.ffi, kernel_mod.lib
 
     # Get pointer to the compiled function
@@ -517,7 +635,7 @@ def solve():
         # Attach rhs expression as coefficient
         L.set_coefficient(0, f._cpp_object)
 
-    assembler = dolfin.cpp.fem.Assembler([[a]], [L], [bc])
+    assembler = dolfin.cpp.fem.Assembler([[a]], [L], [])
     A = PETScMatrix()
     b = PETScVector()
 
@@ -525,11 +643,13 @@ def solve():
     assembly_callable = lambda : assembler.assemble(A, dolfin.cpp.fem.Assembler.BlockType.monolithic)
 
     # Get timings for assembly of matrix over several runs
-    n_runs = 10
-    time_avg, time_min, time_max = timing(n_runs, assembly_callable)
+    n_runs = 20
+    time_avg, time_min, time_max = utils.timing(n_runs, assembly_callable)
     print(f"Timings for assembly (n={n_runs}) avg: {time_avg*1000}ms, min: {time_min*1000}ms, max: {time_max*1000}ms")
 
-    # We don't care about the RHS
+    # Assemble again to get correct results
+    A = PETScMatrix()
+    assembler.assemble(A, dolfin.cpp.fem.Assembler.BlockType.monolithic)
     assembler.assemble(b, dolfin.cpp.fem.Assembler.BlockType.monolithic)
 
     Anorm = A.norm(dolfin.cpp.la.Norm.frobenius)

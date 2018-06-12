@@ -1,3 +1,4 @@
+import time
 import numpy as np
 
 
@@ -22,3 +23,28 @@ def scipy2numpy(scipy_mat):
             np_mat[i,j] = scipy_mat.getValue(i,j)
 
     return np_mat
+
+
+def timing(n_runs: int, func, warm_up: bool = True):
+    """Measures avg, min and max execution time of 'func' over 'n_runs' executions"""
+
+    lower = float('inf')
+    upper = -float('inf')
+    avg = 0
+
+    # Call once without measurement "to get warm"
+    if warm_up:
+        func()
+
+    for i in range(n_runs):
+        start = time.time()
+        func()
+        end = time.time()
+
+        diff = end - start
+
+        lower = min(lower, diff)
+        upper = max(upper, diff)
+        avg += (diff - avg)/(i+1)
+
+    return avg, lower, upper
