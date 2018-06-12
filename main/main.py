@@ -7,6 +7,7 @@ dir = "/local/fenics_work/main"
 if check_install.check(dir) != 0:
     print("Warning: Missing package(s) was/were installed. Please rerun script.")
     sys.exit(1)
+print("")
 
 from simd.run_examples import run_examples
 
