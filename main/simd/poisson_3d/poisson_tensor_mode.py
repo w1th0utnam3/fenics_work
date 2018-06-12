@@ -215,8 +215,18 @@ void tabulate_tensor_A(double* A, const double* const* w, double* coords, int ce
 def reference_tensor(element: FiniteElement):
     """Generates code for the Laplace P1(Tetrahedron) reference tensor"""
 
-    # Generate the reference tensor
-    A0 = generate_ref_tensor(element)
+    element_str = utils.format_filename(str(element))
+    filename = f"{element_str}.npy"
+
+    # Generate the reference tensor or load from file
+    if os.path.isfile(filename):
+        A0 = np.load(filename)
+        print("Loaded reference tensor from file.")
+    else:
+        A0 = generate_ref_tensor(element)
+        np.save(filename, A0)
+        print("Generated reference tensor.")
+
     # Eliminate negative zeros
     A0[A0 == 0] = 0
 
