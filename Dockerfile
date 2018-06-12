@@ -14,7 +14,7 @@ RUN apt-get -qq update && \
 	rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Install PyOpenCL
-RUN pip3 install --no-cache-dir pyopencl
+RUN pip3 install --no-cache-dir pyopencl psutil
 
 # Clone this repository
 WORKDIR /local
