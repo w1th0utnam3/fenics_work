@@ -212,11 +212,11 @@ void tabulate_tensor_A(double* A, const double* const* w, double* coords, int ce
 """
 
 
-def reference_tensor():
+def reference_tensor(element: FiniteElement):
     """Generates code for the Laplace P1(Tetrahedron) reference tensor"""
 
     # Generate the reference tensor
-    A0 = generate_ref_tensor(element=FiniteElement("P", tetrahedron, 1))
+    A0 = generate_ref_tensor(element)
     # Eliminate negative zeros
     A0[A0 == 0] = 0
 
@@ -240,203 +240,214 @@ def reference_tensor():
     numbers = ",\n".join(", ".join(str(x) for x in A0[i,j,:,:].flatten()) for i,j in itertools.product(range(n_dof),range(n_dof)))
     A0_string = A0_string.replace("#", numbers)
 
-    return "\n".join([f"#define A0_NNZ {vals.size}", nnz_string, vals_string, ptrs_string, A0_string])
+    return "\n".join([f"#define A0_NNZ {vals.size}", nnz_string, vals_string, ptrs_string, A0_string]), n_dof, n_dim
 
 
-def kernel_manual():
-    """Handwritten cell kernel for the Laplace operator"""
+class cffi_kernels:
+    @staticmethod
+    def kernel_manual():
+        """Handwritten cell kernel for the Laplace operator"""
 
-    code = """{
-        double acc_knl;
-        for (int i = 0; i < 4; ++i) {
-            for (int j = 0; j < 4; ++j) {
-                acc_knl = 0;
-                for (int k = 0; k < 9; ++k) {
-                    acc_knl += A0[i*4*9 + j*9 + k] * G_T[k];
+        code = """{
+            double acc_knl;
+            for (int i = 0; i < 4; ++i) {
+                for (int j = 0; j < 4; ++j) {
+                    acc_knl = 0;
+                    for (int k = 0; k < 9; ++k) {
+                        acc_knl += A0[i*4*9 + j*9 + k] * G_T[k];
+                    }
+                    A_T[i*4 + j] = acc_knl;
                 }
-                A_T[i*4 + j] = acc_knl;
             }
+        }"""
+
+        return code
+
+    @staticmethod
+    def kernel_avx(knl_name: str):
+        code = """
+    #include <immintrin.h>
+    void {knl_name}(double *restrict A_T, 
+                         double const *restrict A0, 
+                         double const *restrict G_T)
+    {
+        for (int i = 0; i <= 3; ++i) {
+            for (int j = 0; j <= 3; ++j) {
+                __m256d g1 = _mm256_load_pd(&G_T[0]);
+                __m256d a1 = _mm256_load_pd(&A0[36 * i + 9 * j + 0]);
+                __m256d res1 = _mm256_mul_pd(g1, a1);
+    
+                __m256d g2 = _mm256_load_pd(&G_T[4]);
+                __m256d a2 = _mm256_load_pd(&A0[36 * i + 9 * j + 4]);
+                __m256d res2 = _mm256_fmadd_pd(g2, a2, res1);
+                __m256d res3 = _mm256_hadd_pd(res2, res2);
+    
+                A_T[4 * i + j] = ((double*)&res3)[0] + ((double*)&res3)[2] + A0[36 * i + 9 * j + 8]*G_T[8];
+            }
+        }    
+    }""".replace("{knl_name}", knl_name)
+
+        header = """void {knl_name}(double *restrict A_T, 
+                                        double const *restrict A0, 
+                                        double const *restrict G_T);
+            """.replace("{knl_name}", knl_name)
+
+        return code, header
+
+    @staticmethod
+    def kernel_broadcast(knl_name: str):
+        code = """
+    #include <immintrin.h>
+    void {knl_name}(double *restrict A_T, 
+                         double const *restrict A0_entries,
+                         int const *restrict A0_idx,
+                         int const *restrict A0_nnz, 
+                         double const *restrict G_T)
+    {      
+        // Multiply
+        alignas(32) double A_T_scattered[A0_NNZ];
+        for (int i = 0; i < A0_NNZ; i+=4) {
+            __m256d a0 = _mm256_load_pd(&A0_entries[i]);
+            __m256d g = _mm256_set_pd(G_T[A0_idx[i+3]], 
+                                      G_T[A0_idx[i+2]], 
+                                      G_T[A0_idx[i+1]], 
+                                      G_T[A0_idx[i]]);
+            __m256d res = _mm256_mul_pd(a0, g);
+            _mm256_store_pd(&A_T_scattered[i], res);
         }
-    }"""
-
-    return code
-
-
-def kernel_avx(knl_name: str):
-    code = """
-#include <immintrin.h>
-void {knl_name}(double *restrict A_T, 
-                     double const *restrict A0, 
-                     double const *restrict G_T)
-{
-    for (int i = 0; i <= 3; ++i) {
-        for (int j = 0; j <= 3; ++j) {
-            __m256d g1 = _mm256_load_pd(&G_T[0]);
-            __m256d a1 = _mm256_load_pd(&A0[36 * i + 9 * j + 0]);
-            __m256d res1 = _mm256_mul_pd(g1, a1);
-
-            __m256d g2 = _mm256_load_pd(&G_T[4]);
-            __m256d a2 = _mm256_load_pd(&A0[36 * i + 9 * j + 4]);
-            __m256d res2 = _mm256_fmadd_pd(g2, a2, res1);
-            __m256d res3 = _mm256_hadd_pd(res2, res2);
-
-            A_T[4 * i + j] = ((double*)&res3)[0] + ((double*)&res3)[2] + A0[36 * i + 9 * j + 8]*G_T[8];
+        
+        // Reduce
+        double acc_A;
+        double* curr_val = &A_T_scattered[0];
+        for (int i = 0; i < 16; ++i) {
+            acc_A = 0;
+            
+            const double* end = curr_val + A0_nnz[i];
+            for (; curr_val != end; ++curr_val) {
+                acc_A += *(curr_val);
+            }
+            
+            A_T[i] = acc_A;
         }
-    }    
-}""".replace("{knl_name}", knl_name)
+    }""".replace("{knl_name}", knl_name)
 
-    header = """void {knl_name}(double *restrict A_T, 
-                                    double const *restrict A0, 
+        header = """void {knl_name}(double *restrict A_T, 
+                                    double const *restrict A0_entries,
+                                    int const *restrict A0_idx,
+                                    int const *restrict A0_nnz, 
                                     double const *restrict G_T);
         """.replace("{knl_name}", knl_name)
 
-    return code, header
+        return code, header
+
+    @staticmethod
+    def kernel_loopy(knl_name: str, n_dof: int, n_dim: int, verbose: bool = False):
+        """Generate cell kernel for the Laplace operator using Loopy"""
+
+        # Inputs to the kernel
+        arg_names = ["A_T", "A0", "G_T"]
+        # Kernel parameters that will be fixed later
+        param_names = ["n", "m"]
+        # Tuples of inames and extents of their loops
+        loops = [("i", "n"), ("j", "n"), ("k", "m")]
+
+        # Generate the domains for the loops
+        isl_domains = []
+        for idx, extent in loops:
+            # Create dict of loop variables (inames) and parameters
+            vs = isl.make_zero_and_vars([idx], [extent])
+            # Create the loop domain using '<=' and '>' restrictions
+            isl_domains.append(((vs[0].le_set(vs[idx])) & (vs[idx].lt_set(vs[0] + vs[extent]))))
+
+        if verbose:
+            print("ISL loop domains:")
+            print(isl_domains)
+            print("")
+
+        # Generate pymbolic variables for all used symbols
+        args = {arg: pb.Variable(arg) for arg in arg_names}
+        params = {param: pb.Variable(param) for param in param_names}
+        inames = {iname: pb.Variable(iname) for iname, extent in loops}
+
+        # Input arguments for the loopy kernel
+        n, m = params["n"], params["m"]
+        lp_args = {"A_T": lp.GlobalArg("A_T", dtype=np.double, shape=(n, n)),
+                   "A0" : lp.GlobalArg("A0" , dtype=np.double, shape=(n, n, m)),
+                   "G_T": lp.GlobalArg("G_T", dtype=np.double, shape=(m))}
+
+        # Generate the list of arguments & parameters that will be passed to loopy
+        data = []
+        data += [arg for arg in lp_args.values()]
+        data += [lp.ValueArg(param) for param in param_names]
+
+        # Build the kernel instruction: computation and assignment of the element matrix
+        def build_ass():
+            #A_T[i,j] = sum(k, A0[i,j,k] * G_T[k]);
+
+            # Get variable symbols for all required variables
+            i,j,k = inames["i"], inames["j"], inames["k"]
+            A_T, A0, G_T = args["A_T"], args["A0"], args["G_T"]
+
+            # The target of the assignment
+            target = pb.Subscript(A_T, (i, j))
+
+            # The rhs expression: Frobenius inner product <A0[i,j],G_T>
+            reduce_op = lp.library.reduction.SumReductionOperation()
+            reduce_expr = pb.Subscript(A0, (i, j, k)) * pb.Subscript(G_T, (k))
+            expr = lp.Reduction(reduce_op, k, reduce_expr)
+
+            return lp.Assignment(target, expr)
+
+        ass = build_ass()
+
+        if verbose:
+            print("Assignment expression:")
+            print(ass)
+            print("")
+
+        instructions = [ass]
+
+        # Construct the kernel
+        knl = lp.make_kernel(
+            isl_domains,
+            instructions,
+            data,
+            name=knl_name,
+            target=lp.CTarget(),
+            lang_version=lp.MOST_RECENT_LANGUAGE_VERSION)
+
+        knl = lp.fix_parameters(knl, n=n_dof, m=n_dim**2)
+        knl = lp.prioritize_loops(knl, "i,j")
+
+        if verbose:
+            print("")
+            print(knl)
+            print("")
+
+        # Generate kernel code
+        knl_c, knl_h = lp.generate_code_v2(knl).device_code(), str(lp.generate_header(knl)[0])
+
+        if verbose:
+            print(knl_c)
+            print("")
+
+        # Postprocess kernel code
+        knl_c = knl_c.replace("__restrict__", "restrict")
+        knl_h = knl_h.replace("__restrict__", "restrict")
+
+        return knl_c, knl_h
 
 
-def kernel_broadcast(knl_name: str):
-    code = """
-#include <immintrin.h>
-void {knl_name}(double *restrict A_T, 
-                     double const *restrict A0_entries,
-                     int const *restrict A0_idx,
-                     int const *restrict A0_nnz, 
-                     double const *restrict G_T)
-{      
-    // Multiply
-    alignas(32) double A_T_scattered[A0_NNZ];
-    for (int i = 0; i < A0_NNZ; i+=4) {
-        __m256d a0 = _mm256_load_pd(&A0_entries[i]);
-        __m256d g = _mm256_set_pd(G_T[A0_idx[i+3]], 
-                                  G_T[A0_idx[i+2]], 
-                                  G_T[A0_idx[i+1]], 
-                                  G_T[A0_idx[i]]);
-        __m256d res = _mm256_mul_pd(a0, g);
-        _mm256_store_pd(&A_T_scattered[i], res);
-    }
-    
-    // Reduce
-    double acc_A;
-    double* curr_val = &A_T_scattered[0];
-    for (int i = 0; i < 16; ++i) {
-        acc_A = 0;
-        
-        const double* end = curr_val + A0_nnz[i];
-        for (; curr_val != end; ++curr_val) {
-            acc_A += *(curr_val);
-        }
-        
-        A_T[i] = acc_A;
-    }
-}""".replace("{knl_name}", knl_name)
-
-    header = """void {knl_name}(double *restrict A_T, 
-                                double const *restrict A0_entries,
-                                int const *restrict A0_idx,
-                                int const *restrict A0_nnz, 
-                                double const *restrict G_T);
-    """.replace("{knl_name}", knl_name)
-
-    return code, header
-
-
-def kernel_loopy(knl_name: str):
-    """Generate cell kernel for the Laplace operator using Loopy"""
-
-    # Inputs to the kernel
-    arg_names = ["A_T", "A0", "G_T"]
-    # Kernel parameters that will be fixed later
-    param_names = ["n", "m"]
-    # Tuples of inames and extents of their loops
-    loops = [("i", "n"), ("j", "n"), ("k", "m")]
-
-    # Generate the domains for the loops
-    isl_domains = []
-    for idx, extent in loops:
-        # Create dict of loop variables (inames) and parameters
-        vs = isl.make_zero_and_vars([idx], [extent])
-        # Create the loop domain using '<=' and '>' restrictions
-        isl_domains.append(((vs[0].le_set(vs[idx])) & (vs[idx].lt_set(vs[0] + vs[extent]))))
-
-    print("ISL loop domains:")
-    print(isl_domains)
-    print("")
-
-    # Generate pymbolic variables for all used symbols
-    args = {arg: pb.Variable(arg) for arg in arg_names}
-    params = {param: pb.Variable(param) for param in param_names}
-    inames = {iname: pb.Variable(iname) for iname, extent in loops}
-
-    # Input arguments for the loopy kernel
-    n, m = params["n"], params["m"]
-    lp_args = {"A_T": lp.GlobalArg("A_T", dtype=np.double, shape=(n, n)),
-               "A0" : lp.GlobalArg("A0" , dtype=np.double, shape=(n, n, m)),
-               "G_T": lp.GlobalArg("G_T", dtype=np.double, shape=(m))}
-
-    # Generate the list of arguments & parameters that will be passed to loopy
-    data = []
-    data += [arg for arg in lp_args.values()]
-    data += [lp.ValueArg(param) for param in param_names]
-
-    # Build the kernel instruction: computation and assignment of the element matrix
-    def build_ass():
-        #A_T[i,j] = sum(k, A0[i,j,k] * G_T[k]);
-
-        # Get variable symbols for all required variables
-        i,j,k = inames["i"], inames["j"], inames["k"]
-        A_T, A0, G_T = args["A_T"], args["A0"], args["G_T"]
-
-        # The target of the assignment
-        target = pb.Subscript(A_T, (i, j))
-
-        # The rhs expression: Frobenius inner product <A0[i,j],G_T>
-        reduce_op = lp.library.reduction.SumReductionOperation()
-        reduce_expr = pb.Subscript(A0, (i, j, k)) * pb.Subscript(G_T, (k))
-        expr = lp.Reduction(reduce_op, k, reduce_expr)
-
-        return lp.Assignment(target, expr)
-
-    ass = build_ass()
-    print("Assignment expression:")
-    print(ass)
-    print("")
-
-    instructions = [ass]
-
-    # Construct the kernel
-    knl = lp.make_kernel(
-        isl_domains,
-        instructions,
-        data,
-        name=knl_name,
-        target=lp.CTarget(),
-        lang_version=lp.MOST_RECENT_LANGUAGE_VERSION)
-
-    knl = lp.fix_parameters(knl, n=4, m=3*3)
-    knl = lp.prioritize_loops(knl, "i,j")
-    print("")
-    print(knl)
-    print("")
-
-    # Generate kernel code
-    knl_c, knl_h = lp.generate_code_v2(knl).device_code(), str(lp.generate_header(knl)[0])
-    print(knl_c)
-    print("")
-
-    # Postprocess kernel code
-    knl_c = knl_c.replace("__restrict__", "restrict")
-    knl_h = knl_h.replace("__restrict__", "restrict")
-
-    return knl_c, knl_h
-
-
-def compile_poisson_kernel(module_name: str, verbose: bool = False):
+def compile_poisson_kernel(module_name: str, element: FiniteElement, verbose: bool = False):
     useFFCCode = False
 
     knl_name = "kernel_tensor_A"
+    A0_code, n_dof, n_dim = reference_tensor(element)
+    print("Computed reference tensor.")
 
     def useLoopy():
         print("Using Loopy generated kernel")
-        knl_c, knl_h = kernel_loopy(knl_name)
+        knl_c, knl_h = cffi_kernels.kernel_loopy(knl_name, n_dof, n_dim, verbose)
 
         knl_call = f"{knl_name}(A_T, &A0[0], &G_T[0]);"
         knl_impl = knl_c + "\n"
@@ -446,7 +457,7 @@ def compile_poisson_kernel(module_name: str, verbose: bool = False):
 
     def useManualAVX():
         print("Using manual naive AVX kernel")
-        knl_c, knl_h = kernel_avx(knl_name)
+        knl_c, knl_h = cffi_kernels.kernel_avx(knl_name)
 
         # Use hand written kernel
         knl_call = f"{knl_name}(A_T, &A0[0], &G_T[0]);"
@@ -457,7 +468,7 @@ def compile_poisson_kernel(module_name: str, verbose: bool = False):
 
     def useManualBroadcasted():
         print("Using manual 'broadcasted' AVX kernel")
-        knl_c, knl_h = kernel_broadcast(knl_name)
+        knl_c, knl_h = cffi_kernels.kernel_broadcast(knl_name)
 
         # Use hand written kernel
         knl_call = f"{knl_name}(A_T, &A0_entries[0], &A0_idx[0], &A0_nnz[0], &G_T[0]);"
@@ -466,14 +477,14 @@ def compile_poisson_kernel(module_name: str, verbose: bool = False):
 
         return knl_call, knl_impl, knl_sig
 
-    knl_call, knl_impl, knl_sig = useManualBroadcasted()
+    knl_call, knl_impl, knl_sig = useLoopy()
 
     if useFFCCode:
         code_c = TABULATE_C_FFC
         code_h = TABULATE_H
     else:
         # Concatenate code of kernel and tabulate_tensor functions
-        code_c = "\n".join(["#include <stdalign.h>\n", reference_tensor(), knl_impl, TABULATE_C])
+        code_c = "\n".join(["#include <stdalign.h>\n", A0_code, knl_impl, TABULATE_C])
         # Insert code to execute kernel
         code_c = code_c.replace("{kernel}", knl_call)
 
@@ -488,68 +499,70 @@ def compile_poisson_kernel(module_name: str, verbose: bool = False):
     ffi.compile(verbose=verbose)
 
 
-def tabulate_tensor_A(A_, w_, coords_, cell_orientation):
-    '''Computes the Laplace cell tensor for linear 3D Lagrange elements'''
+class numba_kernels:
+    @staticmethod
+    def tabulate_tensor_A(A_, w_, coords_, cell_orientation):
+        '''Computes the Laplace cell tensor for linear 3D Lagrange elements'''
 
-    A = nb.carray(A_, (4, 4), dtype=np.double)
-    coordinate_dofs = nb.carray(coords_, (4, 3), dtype=np.double)
+        A = nb.carray(A_, (4, 4), dtype=np.double)
+        coordinate_dofs = nb.carray(coords_, (4, 3), dtype=np.double)
 
-    # Coordinates of tet vertices
-    x0 = coordinate_dofs[0, :]
-    x1 = coordinate_dofs[1, :]
-    x2 = coordinate_dofs[2, :]
-    x3 = coordinate_dofs[3, :]
+        # Coordinates of tet vertices
+        x0 = coordinate_dofs[0, :]
+        x1 = coordinate_dofs[1, :]
+        x2 = coordinate_dofs[2, :]
+        x3 = coordinate_dofs[3, :]
 
-    # Reference to global transformation matrix
-    B = np.zeros((3,3), dtype=np.double)
-    B[:, 0] = x1 - x0
-    B[:, 1] = x2 - x0
-    B[:, 2] = x3 - x0
+        # Reference to global transformation matrix
+        B = np.zeros((3,3), dtype=np.double)
+        B[:, 0] = x1 - x0
+        B[:, 1] = x2 - x0
+        B[:, 2] = x3 - x0
 
-    Binv = np.linalg.inv(B)
-    detB = np.linalg.det(B)
+        Binv = np.linalg.inv(B)
+        detB = np.linalg.det(B)
 
-    # Matrix of basis function gradients
-    gradPhi = np.zeros((4,3), dtype=np.double)
-    gradPhi[0, :] = [-1, -1, -1]
-    gradPhi[1, :] = [1, 0, 0]
-    gradPhi[2, :] = [0, 1, 0]
-    gradPhi[3, :] = [0, 0, 1]
+        # Matrix of basis function gradients
+        gradPhi = np.zeros((4,3), dtype=np.double)
+        gradPhi[0, :] = [-1, -1, -1]
+        gradPhi[1, :] = [1, 0, 0]
+        gradPhi[2, :] = [0, 1, 0]
+        gradPhi[3, :] = [0, 0, 1]
 
-    A0 = np.zeros((4, 4, 3, 3), dtype=np.double)
-    for i in range(4):
-        for j in range(4):
-            A0[i, j, :, :] = (1.0 / 6.0) * np.outer(gradPhi[i, :], gradPhi[j, :])
+        A0 = np.zeros((4, 4, 3, 3), dtype=np.double)
+        for i in range(4):
+            for j in range(4):
+                A0[i, j, :, :] = (1.0 / 6.0) * np.outer(gradPhi[i, :], gradPhi[j, :])
 
-    G = np.abs(detB) * (Binv @ Binv.transpose())
-    for i in range(4):
-        for j in range(4):
-            A[i, j] = np.sum(np.multiply(A0[i, j, :, :], G))
+        G = np.abs(detB) * (Binv @ Binv.transpose())
+        for i in range(4):
+            for j in range(4):
+                A[i, j] = np.sum(np.multiply(A0[i, j, :, :], G))
 
+    @staticmethod
+    def tabulate_tensor_L(b_, w_, coords_, cell_orientation):
+        '''Computes the rhs for the Poisson problem with f=1 for linear 3D Lagrange elements'''
 
-def tabulate_tensor_L(b_, w_, coords_, cell_orientation):
-    '''Computes the rhs for the Poisson problem with f=1 for linear 3D Lagrange elements'''
+        b = nb.carray(b_, (4), dtype=np.float64)
+        coordinate_dofs = nb.carray(coords_, (4, 3), dtype=np.double)
 
-    b = nb.carray(b_, (4), dtype=np.float64)
-    coordinate_dofs = nb.carray(coords_, (4, 3), dtype=np.double)
+        # Coordinates of tet vertices
+        x0 = coordinate_dofs[0, :]
+        x1 = coordinate_dofs[1, :]
+        x2 = coordinate_dofs[2, :]
+        x3 = coordinate_dofs[3, :]
 
-    # Coordinates of tet vertices
-    x0 = coordinate_dofs[0, :]
-    x1 = coordinate_dofs[1, :]
-    x2 = coordinate_dofs[2, :]
-    x3 = coordinate_dofs[3, :]
+        # Reference to global transformation matrix
+        B = np.zeros((3, 3), dtype=np.double)
+        B[:, 0] = x1 - x0
+        B[:, 1] = x2 - x0
+        B[:, 2] = x3 - x0
 
-    # Reference to global transformation matrix
-    B = np.zeros((3, 3), dtype=np.double)
-    B[:, 0] = x1 - x0
-    B[:, 1] = x2 - x0
-    B[:, 2] = x3 - x0
+        detB = np.linalg.det(B)
+        vol = np.abs(detB)/6.0
 
-    detB = np.linalg.det(B)
-    vol = np.abs(detB)/6.0
-
-    f = 2.0
-    b[:] = f * (vol / 4.0)
+        f = 2.0
+        b[:] = f * (vol / 4.0)
 
 
 def generate_mesh(n):
@@ -570,7 +583,6 @@ def generate_mesh(n):
         return mesh
 
 
-
 def solve():
     # Whether to use custom kernels instead of FFC
     useCustomKernels = True
@@ -585,7 +597,8 @@ def solve():
     times = utils.timing(1, get_mesh, warm_up=False)
     print(f"Time for mesh generation: {times[0]*1000}ms")
 
-    Q = FunctionSpace(mesh, "Lagrange", 1)
+    element = FiniteElement("P", tetrahedron, 3)
+    Q = FunctionSpace(mesh, element)
 
     u = TrialFunction(Q)
     v = TestFunction(Q)
@@ -608,11 +621,12 @@ def solve():
                             nb.types.CPointer(nb.types.double), nb.types.intc)
 
         # Compile the python functions using Numba
-        fnA = nb.cfunc(sig, cache=True, nopython=True)(tabulate_tensor_A)
-        fnL = nb.cfunc(sig, cache=True, nopython=True)(tabulate_tensor_L)
+        fnA = nb.cfunc(sig, cache=True, nopython=True)(numba_kernels.tabulate_tensor_A)
+        fnL = nb.cfunc(sig, cache=True, nopython=True)(numba_kernels.tabulate_tensor_L)
 
         module_name = "_laplace_kernel"
-        compile_poisson_kernel(module_name, verbose=True)
+        compile_poisson_kernel(module_name, element, verbose=False)
+        print("Finished compiling kernel")
 
         # Import the compiled kernel
         kernel_mod = importlib.import_module(f"simd.{module_name}")
@@ -652,7 +666,7 @@ def solve():
     assembly_callable = lambda : assembler.assemble(A, dolfin.cpp.fem.Assembler.BlockType.monolithic)
 
     # Get timings for assembly of matrix over several runs
-    n_runs = 20
+    n_runs = 10
     time_avg, time_min, time_max = utils.timing(n_runs, assembly_callable)
     print(f"Timings for assembly (n={n_runs}) avg: {time_avg*1000}ms, min: {time_min*1000}ms, max: {time_max*1000}ms")
 
@@ -665,9 +679,10 @@ def solve():
     bnorm = b.norm(dolfin.cpp.la.Norm.l2)
     print(Anorm, bnorm)
 
-    # Norms obtained with FFC and n=13
-    assert (np.isclose(Anorm, 60.86192203436385))
-    assert (np.isclose(bnorm, 0.018075523965828778))
+    if useCustomKernels:
+        # Norms obtained with FFC and n=22
+        assert (np.isclose(Anorm, 182.0409307016099))
+        #assert (np.isclose(bnorm, 0.005296019976723171))
 
     return
 
