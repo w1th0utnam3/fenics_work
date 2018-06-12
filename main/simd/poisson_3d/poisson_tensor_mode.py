@@ -453,10 +453,9 @@ def compile_poisson_kernel(module_name: str, element: FiniteElement, verbose: bo
 
     knl_name = "kernel_tensor_A"
     A0_code, n_dof, n_dim = reference_tensor(element)
-    print("Computed reference tensor.")
 
     def useLoopy():
-        print("Using Loopy generated kernel")
+        print("Using Loopy generated kernel.")
         knl_c, knl_h = cffi_kernels.kernel_loopy(knl_name, n_dof, n_dim, verbose)
 
         knl_call = f"{knl_name}(A_T, &A0[0], &G_T[0]);"
@@ -466,7 +465,7 @@ def compile_poisson_kernel(module_name: str, element: FiniteElement, verbose: bo
         return knl_call, knl_impl, knl_sig
 
     def useManualAVX():
-        print("Using manual naive AVX kernel")
+        print("Using manual naive AVX kernel.")
         knl_c, knl_h = cffi_kernels.kernel_avx(knl_name)
 
         # Use hand written kernel
@@ -477,7 +476,7 @@ def compile_poisson_kernel(module_name: str, element: FiniteElement, verbose: bo
         return knl_call, knl_impl, knl_sig
 
     def useManualBroadcasted():
-        print("Using manual 'broadcasted' AVX kernel")
+        print("Using manual 'broadcasted' AVX kernel.")
         knl_c, knl_h = cffi_kernels.kernel_broadcast(knl_name)
 
         # Use hand written kernel
@@ -599,13 +598,8 @@ def solve():
 
     # Generate a unit cube with (n+1)^3 vertices
     n = 22
-    mesh = None
-    def get_mesh():
-        nonlocal mesh
-        mesh = generate_mesh(n)
-
-    times = utils.timing(1, get_mesh, warm_up=False)
-    print(f"Time for mesh generation: {times[0]*1000}ms")
+    mesh = generate_mesh(n)
+    print("Mesh generated.")
 
     element = FiniteElement("P", tetrahedron, 3)
     Q = FunctionSpace(mesh, element)
@@ -636,7 +630,7 @@ def solve():
 
         module_name = "_laplace_kernel"
         compile_poisson_kernel(module_name, element, verbose=False)
-        print("Finished compiling kernel")
+        print("Finished compiling kernel.")
 
         # Import the compiled kernel
         kernel_mod = importlib.import_module(f"simd.{module_name}")
@@ -667,6 +661,7 @@ def solve():
         L = dolfin.cpp.fem.Form(ufc_form, [Q._cpp_object])
         # Attach rhs expression as coefficient
         L.set_coefficient(0, f._cpp_object)
+        print("Built form.")
 
     assembler = dolfin.cpp.fem.Assembler([[a]], [L], [bc])
     A = PETScMatrix()
@@ -677,8 +672,8 @@ def solve():
 
     # Get timings for assembly of matrix over several runs
     n_runs = 10
-    time_avg, time_min, time_max = utils.timing(n_runs, assembly_callable)
-    print(f"Timings for assembly (n={n_runs}) avg: {time_avg*1000}ms, min: {time_min*1000}ms, max: {time_max*1000}ms")
+    time_avg, time_min, time_max = utils.timing(n_runs, assembly_callable, verbose=True)
+    print(f"Timings for element matrix (n={n_runs}) avg: {time_avg*1000}ms, min: {time_min*1000}ms, max: {time_max*1000}ms")
 
     # Assemble again to get correct results
     A = PETScMatrix()
