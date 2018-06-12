@@ -36,7 +36,8 @@ def check(source_dir: str):
 
     for pkg_path in missing:
         print(f"Installing {pkg_path}...")
-        output = subprocess.check_output(["pip3", "install", "-e", os.path.join(source_dir, pkg_path)]).decode('utf-8')
+        output = subprocess.check_output(["pip3", "install", "-e", os.path.join(source_dir, pkg_path)],
+                                         stderr=subprocess.STDOUT).decode('utf-8')
         print(output)
 
     return len(missing)

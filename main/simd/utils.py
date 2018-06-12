@@ -12,9 +12,10 @@ def replace_strings(text: str, replacement_pair_list):
     return new_text
 
 
-def scipy2numpy(scipy_mat):
+def scipy2numpy(scipy_obj):
     """Converts a scipy matrix to a numpy matrix"""
 
+    scipy_mat = scipy_obj.mat()
     size = scipy_mat.getSize()
     np_mat = np.zeros(size)
 

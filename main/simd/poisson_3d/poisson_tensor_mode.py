@@ -15,16 +15,18 @@ import cffi
 import importlib
 import itertools
 
+import os
 
 import simd.utils as utils
+from simd.generate_ref_tensor import generate_ref_tensor
 
 
 # C code for Laplace operator tensor tabulation
 TABULATE_C = """
 void tabulate_tensor_A(double* A_T, const double* const* w, double* coords, int cell_orientation)
-{        
+{
     // Compute cell geometry tensor G_T
-    double G_T[9] __attribute__((aligned(32)));
+    alignas(32) double G_T[9];
     {
         typedef double CoordsMat[4][3];
         CoordsMat* coordinate_dofs = (CoordsMat*)coords;
@@ -213,32 +215,29 @@ void tabulate_tensor_A(double* A, const double* const* w, double* coords, int ce
 def reference_tensor():
     """Generates code for the Laplace P1(Tetrahedron) reference tensor"""
 
-    gradPhi = np.zeros((4, 3), dtype=np.double)
-    gradPhi[0, :] = [-1, -1, -1]
-    gradPhi[1, :] = [1, 0, 0]
-    gradPhi[2, :] = [0, 1, 0]
-    gradPhi[3, :] = [0, 0, 1]
-
-    A0 = np.zeros((4,4,3,3), dtype=np.double)
-    for i in range(4):
-        for j in range(4):
-            A0[i,j,:,:] = (1.0/6.0)*np.outer(gradPhi[i,:], gradPhi[j,:])
-
+    # Generate the reference tensor
+    A0 = generate_ref_tensor(element=FiniteElement("P", tetrahedron, 1))
     # Eliminate negative zeros
     A0[A0 == 0] = 0
 
-    A0_flat = A0.reshape((4*4, 3*3))
+    n_dof = A0.shape[0]
+    n_dim = A0.shape[2]
+
+    assert (A0.shape[0] == A0.shape[1])
+    assert (A0.shape[2] == A0.shape[3])
+
+    A0_flat = A0.reshape((n_dof**2, n_dim**2))
     non_zeros = A0_flat != 0
     nnz = np.sum(non_zeros, axis=1)
-    index_ptrs = np.tile(np.arange(9), (4*4,1))[non_zeros]
+    index_ptrs = np.tile(np.arange(n_dim**2), (n_dof**2,1))[non_zeros]
     vals = A0_flat[non_zeros]
 
-    vals_string = f"static const double A0_entries[{vals.size}] __attribute__((aligned(32))) = {{\n#\n}};".replace("#", ", ".join(str(x) for x in vals))
+    vals_string = f"alignas(32) static const double A0_entries[{vals.size}] = {{\n#\n}};".replace("#", ", ".join(str(x) for x in vals))
     nnz_string = f"static const int A0_nnz[{nnz.size}] = {{\n#\n}};".replace("#", ", ".join(str(x) for x in nnz))
     ptrs_string = f"static const int A0_idx[{index_ptrs.size}] = {{\n#\n}};".replace("#", ", ".join(str(x) for x in index_ptrs))
 
-    A0_string = f"static const double A0[{A0.size}] __attribute__((aligned(32))) = {{\n#\n}};"
-    numbers = ",\n".join(", ".join(str(x) for x in A0[i,j,:,:].flatten()) for i,j in itertools.product(range(4),range(4)))
+    A0_string = f"alignas(32) static const double A0[{A0.size}] = {{\n#\n}};"
+    numbers = ",\n".join(", ".join(str(x) for x in A0[i,j,:,:].flatten()) for i,j in itertools.product(range(n_dof),range(n_dof)))
     A0_string = A0_string.replace("#", numbers)
 
     return "\n".join([f"#define A0_NNZ {vals.size}", nnz_string, vals_string, ptrs_string, A0_string])
@@ -302,20 +301,11 @@ void {knl_name}(double *restrict A_T,
                      int const *restrict A0_idx,
                      int const *restrict A0_nnz, 
                      double const *restrict G_T)
-{
-    /*
-    double G_T_broadcasted[A0_NNZ] __attribute__((aligned(32)));
-    for (int i = 0; i < A0_NNZ; ++i) {
-        G_T_broadcasted[i] = G_T[A0_idx[i]];
-    }
-    */
-    
-    
+{      
     // Multiply
-    double A_T_scattered[A0_NNZ] __attribute__((aligned(32)));
+    alignas(32) double A_T_scattered[A0_NNZ];
     for (int i = 0; i < A0_NNZ; i+=4) {
         __m256d a0 = _mm256_load_pd(&A0_entries[i]);
-        //__m256d g = _mm256_load_pd(&G_T_broadcasted[i]);
         __m256d g = _mm256_set_pd(G_T[A0_idx[i+3]], 
                                   G_T[A0_idx[i+2]], 
                                   G_T[A0_idx[i+1]], 
@@ -476,14 +466,14 @@ def compile_poisson_kernel(module_name: str, verbose: bool = False):
 
         return knl_call, knl_impl, knl_sig
 
-    knl_call, knl_impl, knl_sig = useLoopy()
+    knl_call, knl_impl, knl_sig = useManualBroadcasted()
 
     if useFFCCode:
         code_c = TABULATE_C_FFC
         code_h = TABULATE_H
     else:
         # Concatenate code of kernel and tabulate_tensor functions
-        code_c = "\n".join([reference_tensor(), knl_impl, TABULATE_C])
+        code_c = "\n".join(["#include <stdalign.h>\n", reference_tensor(), knl_impl, TABULATE_C])
         # Insert code to execute kernel
         code_c = code_c.replace("{kernel}", knl_call)
 
@@ -562,18 +552,37 @@ def tabulate_tensor_L(b_, w_, coords_, cell_orientation):
     b[:] = f * (vol / 4.0)
 
 
-def solve():
-    # Whether to use custom kernels instead of FFC
-    useCustomKernels = False
+def generate_mesh(n):
+    return UnitCubeMesh(MPI.comm_world, n, n, n)
 
-    # Generate a unit cube with (n+1)^3 vertices
-    n = 100
-    mesh = None
-    def generate_mesh():
-        nonlocal mesh
+    filename = "mesh.xdmf"
+    if os.path.isfile(filename):
+        with XDMFFile(MPI.comm_world, filename) as f:
+            mesh = f.read_mesh(MPI.comm_world, dolfin.cpp.mesh.GhostMode.none)
+
+        return mesh
+    else:
         mesh = UnitCubeMesh(MPI.comm_world, n, n, n)
 
-    times = utils.timing(1, generate_mesh, warm_up=False)
+        with XDMFFile(MPI.comm_world, filename) as f:
+            f.write(mesh, XDMFFile.Encoding.HDF5)
+
+        return mesh
+
+
+
+def solve():
+    # Whether to use custom kernels instead of FFC
+    useCustomKernels = True
+
+    # Generate a unit cube with (n+1)^3 vertices
+    n = 22
+    mesh = None
+    def get_mesh():
+        nonlocal mesh
+        mesh = generate_mesh(n)
+
+    times = utils.timing(1, get_mesh, warm_up=False)
     print(f"Time for mesh generation: {times[0]*1000}ms")
 
     Q = FunctionSpace(mesh, "Lagrange", 1)
@@ -588,34 +597,34 @@ def solve():
     u0 = Constant(0.0)
     bc = DirichletBC(Q, u0, boundary)
 
-    # Initialize bilinear form and rhs
-    a = dolfin.cpp.fem.Form([Q._cpp_object, Q._cpp_object])
-    L = dolfin.cpp.fem.Form([Q._cpp_object])
-
-    # Signature of tabulate_tensor functions
-    sig = nb.types.void(nb.types.CPointer(nb.types.double),
-                        nb.types.CPointer(nb.types.CPointer(nb.types.double)),
-                        nb.types.CPointer(nb.types.double), nb.types.intc)
-
-    # Compile the python functions using Numba
-    fnA = nb.cfunc(sig, cache=True, nopython=True)(tabulate_tensor_A)
-    fnL = nb.cfunc(sig, cache=True, nopython=True)(tabulate_tensor_L)
-
-    module_name = "_laplace_kernel"
-    compile_poisson_kernel(module_name, verbose=True)
-
-    # Import the compiled kernel
-    kernel_mod = importlib.import_module(f"simd.{module_name}")
-    ffi, lib = kernel_mod.ffi, kernel_mod.lib
-
-    # Get pointer to the compiled function
-    fnA_ptr = ffi.cast("uintptr_t", ffi.addressof(lib, "tabulate_tensor_A"))
-
-    # Get pointers to Numba functions
-    #fnA_ptr = fnA.address
-    fnL_ptr = fnL.address
-
     if useCustomKernels:
+        # Initialize bilinear form and rhs
+        a = dolfin.cpp.fem.Form([Q._cpp_object, Q._cpp_object])
+        L = dolfin.cpp.fem.Form([Q._cpp_object])
+
+        # Signature of tabulate_tensor functions
+        sig = nb.types.void(nb.types.CPointer(nb.types.double),
+                            nb.types.CPointer(nb.types.CPointer(nb.types.double)),
+                            nb.types.CPointer(nb.types.double), nb.types.intc)
+
+        # Compile the python functions using Numba
+        fnA = nb.cfunc(sig, cache=True, nopython=True)(tabulate_tensor_A)
+        fnL = nb.cfunc(sig, cache=True, nopython=True)(tabulate_tensor_L)
+
+        module_name = "_laplace_kernel"
+        compile_poisson_kernel(module_name, verbose=True)
+
+        # Import the compiled kernel
+        kernel_mod = importlib.import_module(f"simd.{module_name}")
+        ffi, lib = kernel_mod.ffi, kernel_mod.lib
+
+        # Get pointer to the compiled function
+        fnA_ptr = ffi.cast("uintptr_t", ffi.addressof(lib, "tabulate_tensor_A"))
+
+        # Get pointers to Numba functions
+        # fnA_ptr = fnA.address
+        fnL_ptr = fnL.address
+
         # Configure Forms to use own tabulate functions
         a.set_cell_tabulate(0, fnA_ptr)
         L.set_cell_tabulate(0, fnL_ptr)
@@ -635,7 +644,7 @@ def solve():
         # Attach rhs expression as coefficient
         L.set_coefficient(0, f._cpp_object)
 
-    assembler = dolfin.cpp.fem.Assembler([[a]], [L], [])
+    assembler = dolfin.cpp.fem.Assembler([[a]], [L], [bc])
     A = PETScMatrix()
     b = PETScVector()
 
