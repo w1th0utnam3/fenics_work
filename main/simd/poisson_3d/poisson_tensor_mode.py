@@ -6,6 +6,7 @@ from dolfin.jit.jit import ffc_jit
 
 import numba as nb
 import numpy as np
+import scipy.sparse as sps
 
 import loopy as lp
 import islpy as isl
@@ -230,32 +231,40 @@ def reference_tensor(element: FiniteElement):
     # Eliminate negative zeros
     A0[A0 == 0] = 0
 
-    n_dof = A0.shape[0]
-    n_dim = A0.shape[2]
-
     assert (A0.shape[0] == A0.shape[1])
     assert (A0.shape[2] == A0.shape[3])
 
+    n_dof = A0.shape[0]
+    n_dim = A0.shape[2]
+
+    # Flatten reference tensor and convert to CSR sparse matrix
     A0_flat = A0.reshape((n_dof**2, n_dim**2))
-    non_zeros = A0_flat != 0
-    nnz = np.sum(non_zeros, axis=1)
-    index_ptrs = np.tile(np.arange(n_dim**2), (n_dof**2,1))[non_zeros]
-    vals = A0_flat[non_zeros]
+    A0_csr = sps.csr_matrix(A0_flat)
 
-    vals_string = f"alignas(32) static const double A0_entries[{vals.size}] = {{\n#\n}};".replace("#", ", ".join(str(x) for x in vals))
-    nnz_string = f"static const int A0_nnz[{nnz.size}] = {{\n#\n}};".replace("#", ", ".join(str(x) for x in nnz))
-    ptrs_string = f"static const int A0_idx[{index_ptrs.size}] = {{\n#\n}};".replace("#", ", ".join(str(x) for x in index_ptrs))
+    vals = A0_csr.data
+    row_ptrs = A0_csr.indptr
+    col_idx = A0_csr.indices
 
+    assert(row_ptrs.size == A0_flat.shape[0] + 1)
+    assert (row_ptrs[-1] == vals.size)
+
+    # Generate C definitions of sparse arrays
+    vals_string = f"alignas(32) static const double A0_vals[{vals.size}] = {{\n#\n}};".replace("#", ", ".join(str(x) for x in A0_csr.data))
+    row_ptr_string = f"static const int A0_row_ptr[{row_ptrs.size}] = {{\n#\n}};".replace("#", ", ".join(str(x) for x in A0_csr.indptr))
+    col_idx_string = f"static const int A0_col_idx[{col_idx.size}] = {{\n#\n}};".replace("#", ", ".join(str(x) for x in A0_csr.indices))
+
+    # Generate C definition of dense tensor
     A0_string = f"alignas(32) static const double A0[{A0.size}] = {{\n#\n}};"
     numbers = ",\n".join(", ".join(str(x) for x in A0[i,j,:,:].flatten()) for i,j in itertools.product(range(n_dof),range(n_dof)))
     A0_string = A0_string.replace("#", numbers)
 
     return "\n".join([f"#define N_DOF {n_dof}",
                       f"#define N_DIM {n_dim}",
+                      f"#define GT_SIZE {n_dim**2}",
                       f"#define AT_SIZE {n_dof**2}",
                       f"#define A0_NNZ {vals.size}",
                       f"#define VECTORIZED_NNZ {int(np.floor(vals.size / 4)*4)}",
-                      nnz_string, vals_string, ptrs_string, A0_string]), n_dof, n_dim
+                      vals_string, row_ptr_string, col_idx_string, A0_string]), n_dof, n_dim
 
 
 class cffi_kernels:
@@ -265,19 +274,21 @@ class cffi_kernels:
 
         code = """{
             double acc_knl;
-            for (int i = 0; i < 4; ++i) {
-                for (int j = 0; j < 4; ++j) {
+            for (int i = 0; i < N_DOF; ++i) {
+                for (int j = 0; j < N_DOF; ++j) {
                     acc_knl = 0;
-                    for (int k = 0; k < 9; ++k) {
-                        acc_knl += A0[i*4*9 + j*9 + k] * G_T[k];
+                    for (int k = 0; k < GT_SIZE; ++k) {
+                        acc_knl += A0[i*N_DOF*GT_SIZE + j*GT_SIZE + k] * G_T[k];
                     }
-                    A_T[i*4 + j] = acc_knl;
+                    A_T[i*N_DOF + j] = acc_knl;
                 }
             }
         }"""
 
         return code
 
+    # Following code does not generalize to arbitrary elements
+    '''
     @staticmethod
     def kernel_avx(knl_name: str):
         code = """
@@ -308,25 +319,56 @@ class cffi_kernels:
             """.replace("{knl_name}", knl_name)
 
         return code, header
+    '''
 
     @staticmethod
-    def kernel_broadcast(knl_name: str):
+    def kernel_sparse(knl_name: str):
+        code = """
+    void {knl_name}(double *restrict A_T, 
+                         double const *restrict A0_vals,
+                         int const *restrict A0_col_idx,
+                         int const *restrict A0_row_ptr, 
+                         double const *restrict G_T)
+    {   
+        double acc_A;
+        for (int i = 0; i < AT_SIZE; ++i) {
+            acc_A = 0;
+
+            for (int j = A0_row_ptr[i]; j < A0_row_ptr[i+1]; ++j) {
+                acc_A += A0_vals[j] * G_T[A0_col_idx[j]];
+            }
+
+            A_T[i] = acc_A;
+        }
+    }""".replace("{knl_name}", knl_name)
+
+        header = """void {knl_name}(double *restrict A_T, 
+                                    double const *restrict A0_vals,
+                                    int const *restrict A0_col_idx,
+                                    int const *restrict A0_row_ptr, 
+                                    double const *restrict G_T);
+        """.replace("{knl_name}", knl_name)
+
+        return code, header
+
+    @staticmethod
+    def kernel_sparse_avx(knl_name: str):
         code = """
     #include <immintrin.h>
     void {knl_name}(double *restrict A_T, 
-                         double const *restrict A0_entries,
-                         int const *restrict A0_idx,
-                         int const *restrict A0_nnz, 
+                         double const *restrict A0_vals,
+                         int const *restrict A0_col_idx,
+                         int const *restrict A0_row_ptr, 
                          double const *restrict G_T)
     {   
         // A0 * G_T multiplication, vectorized
         alignas(32) double A_T_scattered[A0_NNZ];
         for (int i = 0; i < VECTORIZED_NNZ; i+=4) {
-            __m256d a0 = _mm256_load_pd(&A0_entries[i]);
-            __m256d g = _mm256_set_pd(G_T[A0_idx[i+3]], 
-                                      G_T[A0_idx[i+2]], 
-                                      G_T[A0_idx[i+1]], 
-                                      G_T[A0_idx[i]]);
+            __m256d a0 = _mm256_load_pd(&A0_vals[i]);
+            __m256d g = _mm256_set_pd(G_T[A0_col_idx[i+3]], 
+                                      G_T[A0_col_idx[i+2]], 
+                                      G_T[A0_col_idx[i+1]], 
+                                      G_T[A0_col_idx[i]]);
             __m256d res = _mm256_mul_pd(a0, g);
             _mm256_store_pd(&A_T_scattered[i], res);
         }
@@ -334,19 +376,17 @@ class cffi_kernels:
         #if VECTORIZED_NNZ != A0_NNZ
         // A0 * G_T multiplication, remainder
         for (int i = VECTORIZED_NNZ; i < A0_NNZ; ++i) {
-            A_T_scattered[i] = A0_entries[i]*G_T[A0_idx[i]];
+            A_T_scattered[i] = A0_vals[i]*G_T[A0_col_idx[i]];
         }
         #endif
         
         // Reduce
         double acc_A;
-        double* curr_val = &A_T_scattered[0];
         for (int i = 0; i < AT_SIZE; ++i) {
             acc_A = 0;
             
-            const double* end = curr_val + A0_nnz[i];
-            for (; curr_val != end; ++curr_val) {
-                acc_A += *(curr_val);
+            for (int j = A0_row_ptr[i]; j < A0_row_ptr[i+1]; ++j) {
+                acc_A += A_T_scattered[j];
             }
             
             A_T[i] = acc_A;
@@ -354,9 +394,9 @@ class cffi_kernels:
     }""".replace("{knl_name}", knl_name)
 
         header = """void {knl_name}(double *restrict A_T, 
-                                    double const *restrict A0_entries,
-                                    int const *restrict A0_idx,
-                                    int const *restrict A0_nnz, 
+                                    double const *restrict A0_vals,
+                                    int const *restrict A0_col_idx,
+                                    int const *restrict A0_row_ptr, 
                                     double const *restrict G_T);
         """.replace("{knl_name}", knl_name)
 
@@ -476,7 +516,8 @@ def compile_poisson_kernel(module_name: str, element: FiniteElement, verbose: bo
 
         return knl_call, knl_impl, knl_sig
 
-    def useManualAVX():
+    '''
+    def useAVX():
         print("Using manual naive AVX kernel.")
         knl_c, knl_h = cffi_kernels.kernel_avx(knl_name)
 
@@ -486,19 +527,31 @@ def compile_poisson_kernel(module_name: str, element: FiniteElement, verbose: bo
         knl_sig = knl_h + "\n"
 
         return knl_call, knl_impl, knl_sig
+    '''
 
-    def useManualBroadcasted():
-        print("Using manual 'broadcasted' AVX kernel.")
-        knl_c, knl_h = cffi_kernels.kernel_broadcast(knl_name)
+    def useSparse():
+        print("Using manual kernel on sparse tensor (no AVX).")
+        knl_c, knl_h = cffi_kernels.kernel_sparse(knl_name)
 
         # Use hand written kernel
-        knl_call = f"{knl_name}(A_T, &A0_entries[0], &A0_idx[0], &A0_nnz[0], &G_T[0]);"
+        knl_call = f"{knl_name}(A_T, &A0_vals[0], &A0_col_idx[0], &A0_row_ptr[0], &G_T[0]);"
         knl_impl = knl_c + "\n"
         knl_sig = knl_h + "\n"
 
         return knl_call, knl_impl, knl_sig
 
-    knl_call, knl_impl, knl_sig = useLoopy()
+    def useSparseAvx():
+        print("Using manual AVX kernel on sparse tensor.")
+        knl_c, knl_h = cffi_kernels.kernel_sparse_avx(knl_name)
+
+        # Use hand written kernel
+        knl_call = f"{knl_name}(A_T, &A0_vals[0], &A0_col_idx[0], &A0_row_ptr[0], &G_T[0]);"
+        knl_impl = knl_c + "\n"
+        knl_sig = knl_h + "\n"
+
+        return knl_call, knl_impl, knl_sig
+
+    knl_call, knl_impl, knl_sig = useSparse()
 
     if useFFCCode:
         code_c = TABULATE_C_FFC
