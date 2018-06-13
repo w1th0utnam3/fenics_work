@@ -250,7 +250,12 @@ def reference_tensor(element: FiniteElement):
     numbers = ",\n".join(", ".join(str(x) for x in A0[i,j,:,:].flatten()) for i,j in itertools.product(range(n_dof),range(n_dof)))
     A0_string = A0_string.replace("#", numbers)
 
-    return "\n".join([f"#define A0_NNZ {vals.size}", nnz_string, vals_string, ptrs_string, A0_string]), n_dof, n_dim
+    return "\n".join([f"#define N_DOF {n_dof}",
+                      f"#define N_DIM {n_dim}",
+                      f"#define AT_SIZE {n_dof**2}",
+                      f"#define A0_NNZ {vals.size}",
+                      f"#define VECTORIZED_NNZ {int(np.floor(vals.size / 4)*4)}",
+                      nnz_string, vals_string, ptrs_string, A0_string]), n_dof, n_dim
 
 
 class cffi_kernels:
@@ -313,10 +318,10 @@ class cffi_kernels:
                          int const *restrict A0_idx,
                          int const *restrict A0_nnz, 
                          double const *restrict G_T)
-    {      
-        // Multiply
+    {   
+        // A0 * G_T multiplication, vectorized
         alignas(32) double A_T_scattered[A0_NNZ];
-        for (int i = 0; i < A0_NNZ; i+=4) {
+        for (int i = 0; i < VECTORIZED_NNZ; i+=4) {
             __m256d a0 = _mm256_load_pd(&A0_entries[i]);
             __m256d g = _mm256_set_pd(G_T[A0_idx[i+3]], 
                                       G_T[A0_idx[i+2]], 
@@ -326,10 +331,17 @@ class cffi_kernels:
             _mm256_store_pd(&A_T_scattered[i], res);
         }
         
+        #if VECTORIZED_NNZ != A0_NNZ
+        // A0 * G_T multiplication, remainder
+        for (int i = VECTORIZED_NNZ; i < A0_NNZ; ++i) {
+            A_T_scattered[i] = A0_entries[i]*G_T[A0_idx[i]];
+        }
+        #endif
+        
         // Reduce
         double acc_A;
         double* curr_val = &A_T_scattered[0];
-        for (int i = 0; i < 16; ++i) {
+        for (int i = 0; i < AT_SIZE; ++i) {
             acc_A = 0;
             
             const double* end = curr_val + A0_nnz[i];
@@ -601,7 +613,7 @@ def solve():
     mesh = generate_mesh(n)
     print("Mesh generated.")
 
-    element = FiniteElement("P", tetrahedron, 3)
+    element = FiniteElement("P", tetrahedron, 2)
     Q = FunctionSpace(mesh, element)
 
     u = TrialFunction(Q)
@@ -633,7 +645,7 @@ def solve():
         print("Finished compiling kernel.")
 
         # Import the compiled kernel
-        kernel_mod = importlib.import_module(f"simd.{module_name}")
+        kernel_mod = importlib.import_module(f"simd.tmp.{module_name}")
         ffi, lib = kernel_mod.ffi, kernel_mod.lib
 
         # Get pointer to the compiled function
@@ -673,7 +685,7 @@ def solve():
     # Get timings for assembly of matrix over several runs
     n_runs = 10
     time_avg, time_min, time_max = utils.timing(n_runs, assembly_callable, verbose=True)
-    print(f"Timings for element matrix (n={n_runs}) avg: {time_avg*1000}ms, min: {time_min*1000}ms, max: {time_max*1000}ms")
+    print(f"Timings for element matrix (n={n_runs}) avg: {round(time_avg*1000, 2)}ms, min: {round(time_min*1000, 2)}ms, max: {round(time_max*1000, 2)}ms")
 
     # Assemble again to get correct results
     A = PETScMatrix()
@@ -686,8 +698,8 @@ def solve():
 
     if useCustomKernels:
         # Norms obtained with FFC and n=22
-        assert (np.isclose(Anorm, 182.0409307016099))
-        #assert (np.isclose(bnorm, 0.005296019976723171))
+        assert (np.isclose(Anorm, 118.19435458024503))
+        #assert (np.isclose(bnorm, 0.009396467472097566))
 
     return
 
@@ -699,8 +711,8 @@ def solve():
     solver.solve(u.vector(), b)
 
     # Export result
-    #file = XDMFFile(MPI.comm_world, "poisson_3d.xdmf")
-    #file.write(u, XDMFFile.Encoding.HDF5)
+    file = XDMFFile(MPI.comm_world, "poisson_3d.xdmf")
+    file.write(u, XDMFFile.Encoding.HDF5)
 
 
 def run_example():
