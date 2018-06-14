@@ -445,6 +445,7 @@ TABULATE_C_FFC_P2 = """void tabulate_tensor_A(
 # C header for Laplace operator tensor tabulation
 TABULATE_H = """void tabulate_tensor_A(double* A, const double* const* w, const double* restrict coordinate_dofs, int cell_orientation);"""
 
+
 class ReferenceTensor():
     def __init__(self, element: FiniteElement):
         self.element = element
@@ -590,14 +591,12 @@ class SparseProductKernel(BasicKernel):
 
         self.kernel_call = "{knl_name}(A_T, &A0_vals[0], &A0_col_idx[0], &A0_row_ptr[0], &G_T[0]);"
 
-    def kernel(self, knl_name: str, verbose: bool = False, **kwargs):
-        if verbose:
-            print("Using manual kernel on sparse tensor (no AVX).")
-
+    def kernel(self, knl_name: str, **kwargs):
+        print("Using manual kernel on sparse tensor (no AVX).")
         return super().kernel(knl_name)
 
 
-class SparseProductKernelAVX(SparseProductKernel):
+class SparseProductKernelAVX(BasicKernel):
     def __init__(self, **kwargs):
         super().__init__()
 
@@ -641,10 +640,18 @@ class SparseProductKernelAVX(SparseProductKernel):
                 }
             }"""
 
-    def kernel(self, knl_name: str, verbose: bool = False, **kwargs):
-        if verbose:
-            print("Using manual AVX kernel on sparse tensor.")
+        self.kernel_header = """
+            void {knl_name}(
+                double *restrict A_T, 
+                double const *restrict A0_vals,
+                int const *restrict A0_col_idx,
+                int const *restrict A0_row_ptr, 
+                double const *restrict G_T);"""
 
+        self.kernel_call = "{knl_name}(A_T, &A0_vals[0], &A0_col_idx[0], &A0_row_ptr[0], &G_T[0]);"
+
+    def kernel(self, knl_name: str, **kwargs):
+        print("Using manual AVX kernel on sparse tensor.")
         return super().kernel(knl_name)
 
 
@@ -658,8 +665,7 @@ class LoopyKernel():
         self.n_dim = n_dim
 
     def kernel(self, knl_name: str, verbose: bool = False, **kwargs):
-        if verbose:
-            print("Using Loopy generated kernel.")
+        print("Using Loopy generated kernel.")
 
         knl_c, knl_h = self.__generate_loopy(knl_name, verbose)
 
@@ -779,10 +785,8 @@ class FFCKernel():
         self.kernel_header = TABULATE_H
         self.kernel_call = ""
 
-    def kernel(self, knl_name: str, verbose: bool = False, **kwargs):
-        if (verbose):
-            print("Using FFC generated kernel code.")
-
+    def kernel(self, knl_name: str, **kwargs):
+        print("Using FFC generated kernel code.")
         return self.kernel_code, self.kernel_header
 
 
@@ -917,19 +921,21 @@ def generate_mesh(n):
         return mesh
 
 
-def solve():
+def solve(n_runs: int,
+          mesh_size: int,
+          element: FiniteElement,
+          reference_tensor: ReferenceTensor,
+          kernel_generator):
     # Whether to use custom kernels instead of FFC
     useCustomKernels = True
 
     # Generate a unit cube with (n+1)^3 vertices
-    n = 22
-    mesh = generate_mesh(n)
+    mesh = generate_mesh(mesh_size)
     print("Mesh generated.")
 
-    element = FiniteElement("P", tetrahedron, 2)
-    Q = FunctionSpace(mesh, element)
-    A0 = ReferenceTensor(element)
+    A0 = reference_tensor
 
+    Q = FunctionSpace(mesh, element)
     u = TrialFunction(Q)
     v = TestFunction(Q)
 
@@ -939,18 +945,6 @@ def solve():
 
     u0 = Constant(0.0)
     bc = DirichletBC(Q, u0, boundary)
-
-    # Define the kernel generators
-    kernels = {
-        "ffc": lambda : FFCKernel(),
-        "dense": lambda : DenseProductKernel(),
-        "sparse": lambda : SparseProductKernel(),
-        "sparse_avx": lambda : SparseProductKernelAVX(),
-        "loopy": lambda : LoopyKernel(n_dof=A0.n_dof, n_dim=A0.n_dim)
-    }
-
-    # Select the kernel generator that should be used
-    kernel = kernels["loopy"]()
 
     if useCustomKernels:
         # Initialize bilinear form and rhs
@@ -967,18 +961,12 @@ def solve():
         fnL = nb.cfunc(sig, cache=True, nopython=True)(numba_kernels.tabulate_tensor_L)
 
         module_name = "_laplace_kernel"
-        compile_poisson_kernel(module_name, kernel, A0, verbose=True)
+        compile_poisson_kernel(module_name, kernel_generator, A0, verbose=False)
         print("Finished compiling kernel.")
 
         # Import the compiled kernel
         kernel_mod = importlib.import_module(f"simd.tmp.{module_name}")
         ffi, lib = kernel_mod.ffi, kernel_mod.lib
-
-        # Make timing test runs of the tabulate tensor function
-        n_runs = 1
-        test_callable = lambda : lib.call_tabulate(n)
-        time_avg, time_min, time_max = utils.timing(n_runs, test_callable, verbose=True)
-        print(f"Timings for tabulate calls (n={n_runs}) avg: {round(time_avg*1000, 2)}ms, min: {round(time_min*1000, 2)}ms, max: {round(time_max*1000, 2)}ms")
 
         # Get pointer to the compiled function
         fnA_ptr = ffi.cast("uintptr_t", ffi.addressof(lib, "tabulate_tensor_A"))
@@ -1015,7 +1003,6 @@ def solve():
     assembly_callable = lambda : assembler.assemble(A, dolfin.cpp.fem.Assembler.BlockType.monolithic)
 
     # Get timings for assembly of matrix over several runs
-    n_runs = 2
     time_avg, time_min, time_max = utils.timing(n_runs, assembly_callable, verbose=True)
     print(f"Timings for element matrix assembly (n={n_runs}) avg: {round(time_avg*1000, 2)}ms, min: {round(time_min*1000, 2)}ms, max: {round(time_max*1000, 2)}ms")
 
@@ -1049,5 +1036,47 @@ def solve():
     file.write(u, XDMFFile.Encoding.HDF5)
 
 
+def timing_tests(n_runs: int, mesh_size: int, reference_tensor: ReferenceTensor, kernel_generator):
+    module_name = "_laplace_kernel"
+    compile_poisson_kernel(module_name, kernel_generator, reference_tensor, verbose=False)
+    print("Finished compiling kernel.")
+
+    # Import the compiled kernel
+    kernel_mod = importlib.import_module(f"simd.tmp.{module_name}")
+    ffi, lib = kernel_mod.ffi, kernel_mod.lib
+
+    # Make timing test runs of the tabulate tensor function
+    n_runs = n_runs
+    test_callable = lambda: lib.call_tabulate(mesh_size)
+    time_avg, time_min, time_max = utils.timing(n_runs, test_callable, verbose=True)
+    print(
+        f"Timings for tabulate calls (n={n_runs}) avg: {round(time_avg*1000, 2)}ms, min: {round(time_min*1000, 2)}ms, max: {round(time_max*1000, 2)}ms")
+
+    return time_avg, time_min, time_max
+
+
 def run_example():
-    solve()
+    # Mesh size, (n+1)^3 vertices
+    n = 22
+
+    element = FiniteElement("P", tetrahedron, 2)
+    A0 = ReferenceTensor(element)
+
+    # Define the kernel generators
+    kernels = {
+        "ffc": lambda: FFCKernel(),
+        "dense": lambda: DenseProductKernel(),
+        "sparse": lambda: SparseProductKernel(),
+        "sparse_avx": lambda: SparseProductKernelAVX(),
+        "loopy": lambda: LoopyKernel(n_dof=A0.n_dof, n_dim=A0.n_dim)
+    }
+
+    # Select the kernel generator that should be used
+    kernel = kernels["loopy"]()
+
+    # Perform timing tests of the tabulate_tensor calls
+    timing_tests(10, n, A0, kernel)
+    print("")
+
+    # Assemble the system
+    solve(10, n, element, A0, kernel)
