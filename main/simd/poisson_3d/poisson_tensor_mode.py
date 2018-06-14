@@ -23,6 +23,7 @@ import simd.utils as utils
 from simd.generate_ref_tensor import generate_ref_tensor
 
 
+# Testing code to call tabulate tensor function for each element of a n^3 unit cube
 TEST_CODE_C = """double call_tabulate(int n)
 {
     alignas(32) static const double coords[4][3] = {
@@ -444,68 +445,103 @@ TABULATE_C_FFC_P2 = """void tabulate_tensor_A(
 # C header for Laplace operator tensor tabulation
 TABULATE_H = """void tabulate_tensor_A(double* A, const double* const* w, const double* restrict coordinate_dofs, int cell_orientation);"""
 
+class ReferenceTensor():
+    def __init__(self, element: FiniteElement):
+        self.element = element
+        self.n_dof = None
+        self.n_dim = None
+        self.tensor_code = None
 
-def reference_tensor(element: FiniteElement):
-    """Generates code for the Laplace P1(Tetrahedron) reference tensor"""
+        self.tensor_code, self.n_dof, self.n_dim = self.__generate_reference_tensor()
 
-    element_str = utils.format_filename(str(element))
-    filename = f"{element_str}.npy"
+    def code(self):
+        return self.tensor_code
 
-    # Generate the reference tensor or load from file
-    if os.path.isfile(filename):
-        A0 = np.load(filename)
-        print("Loaded reference tensor from file.")
-    else:
-        A0 = generate_ref_tensor(element)
-        np.save(filename, A0)
-        print("Generated reference tensor.")
+    def __generate_reference_tensor(self):
+        """Generates code for the Laplace reference tensor"""
 
-    # Eliminate negative zeros
-    A0[A0 == 0] = 0
-    print(f"Sparsity ratio of reference tensor (number zeros / size): {round(np.sum(A0 == 0) / A0.size, 3)}")
+        element_str = utils.format_filename(str(self.element))
+        filename = f"{element_str}.npy"
 
-    assert (A0.shape[0] == A0.shape[1])
-    assert (A0.shape[2] == A0.shape[3])
+        # Generate the reference tensor or load from file
+        if os.path.isfile(filename):
+            A0 = np.load(filename)
+            print("Loaded reference tensor from file.")
+        else:
+            A0 = generate_ref_tensor(self.element)
+            np.save(filename, A0)
+            print("Generated reference tensor.")
 
-    n_dof = A0.shape[0]
-    n_dim = A0.shape[2]
+        # Eliminate negative zeros
+        A0[A0 == 0] = 0
+        print(f"Sparsity ratio of reference tensor (number zeros / size): {round(np.sum(A0 == 0) / A0.size, 3)}")
 
-    # Flatten reference tensor and convert to CSR sparse matrix
-    A0_flat = A0.reshape((n_dof**2, n_dim**2))
-    A0_csr = sps.csr_matrix(A0_flat)
+        assert (A0.shape[0] == A0.shape[1])
+        assert (A0.shape[2] == A0.shape[3])
 
-    vals = A0_csr.data
-    row_ptrs = A0_csr.indptr
-    col_idx = A0_csr.indices
+        n_dof = A0.shape[0]
+        n_dim = A0.shape[2]
 
-    assert(row_ptrs.size == A0_flat.shape[0] + 1)
-    assert (row_ptrs[-1] == vals.size)
+        # Flatten reference tensor and convert to CSR sparse matrix
+        A0_flat = A0.reshape((n_dof ** 2, n_dim ** 2))
+        A0_csr = sps.csr_matrix(A0_flat)
 
-    # Generate C definitions of sparse arrays
-    vals_string = f"alignas(32) static const double A0_vals[{vals.size}] = {{\n#\n}};".replace("#", ", ".join(str(x) for x in A0_csr.data))
-    row_ptr_string = f"static const int A0_row_ptr[{row_ptrs.size}] = {{\n#\n}};".replace("#", ", ".join(str(x) for x in A0_csr.indptr))
-    col_idx_string = f"static const int A0_col_idx[{col_idx.size}] = {{\n#\n}};".replace("#", ", ".join(str(x) for x in A0_csr.indices))
+        vals = A0_csr.data
+        row_ptrs = A0_csr.indptr
+        col_idx = A0_csr.indices
 
-    # Generate C definition of dense tensor
-    A0_string = f"alignas(32) static const double A0[{A0.size}] = {{\n#\n}};"
-    numbers = ",\n".join(", ".join(str(x) for x in A0[i,j,:,:].flatten()) for i,j in itertools.product(range(n_dof),range(n_dof)))
-    A0_string = A0_string.replace("#", numbers)
+        assert (row_ptrs.size == A0_flat.shape[0] + 1)
+        assert (row_ptrs[-1] == vals.size)
 
-    return "\n".join([f"#define N_DOF {n_dof}",
-                      f"#define N_DIM {n_dim}",
-                      f"#define GT_SIZE {n_dim**2}",
-                      f"#define AT_SIZE {n_dof**2}",
-                      f"#define A0_NNZ {vals.size}",
-                      f"#define VECTORIZED_NNZ {int(np.floor(vals.size / 4)*4)}",
-                      vals_string, row_ptr_string, col_idx_string, A0_string]), n_dof, n_dim
+        # Generate C definitions of sparse arrays
+        vals_string = f"alignas(32) static const double A0_vals[{vals.size}] = {{\n#\n}};".replace("#", ", ".join(
+            str(x) for x in A0_csr.data))
+        row_ptr_string = f"static const int A0_row_ptr[{row_ptrs.size}] = {{\n#\n}};".replace("#", ", ".join(
+            str(x) for x in A0_csr.indptr))
+        col_idx_string = f"static const int A0_col_idx[{col_idx.size}] = {{\n#\n}};".replace("#", ", ".join(
+            str(x) for x in A0_csr.indices))
+
+        # Generate C definition of dense tensor
+        A0_string = f"alignas(32) static const double A0[{A0.size}] = {{\n#\n}};"
+        numbers = ",\n".join(", ".join(str(x) for x in A0[i, j, :, :].flatten()) for i, j in
+                             itertools.product(range(n_dof), range(n_dof)))
+        A0_string = A0_string.replace("#", numbers)
+
+        return "\n".join([f"#define N_DOF {n_dof}",
+                          f"#define N_DIM {n_dim}",
+                          f"#define GT_SIZE {n_dim**2}",
+                          f"#define AT_SIZE {n_dof**2}",
+                          f"#define A0_NNZ {vals.size}",
+                          f"#define VECTORIZED_NNZ {int(np.floor(vals.size / 4)*4)}",
+                          vals_string, row_ptr_string, col_idx_string, A0_string]), n_dof, n_dim
 
 
-class cffi_kernels:
-    @staticmethod
-    def kernel_manual():
-        """Handwritten cell kernel for the Laplace operator"""
+class BasicKernel():
+    def __init__(self, **kwargs):
+        self.kernel_code = ""
+        self.kernel_header = ""
+        self.kernel_call = ""
 
-        code = """{
+    def kernel(self, knl_name: str, **kwargs):
+        # Use hand written kernel
+        knl_impl = self.kernel_code.replace("{knl_name}", knl_name) + "\n"
+        knl_sig = self.kernel_header.replace("{knl_name}", knl_name) + "\n"
+        knl_call = self.kernel_call.replace("{knl_name}", knl_name)
+
+        code_c = "\n".join([knl_impl, TABULATE_C])
+        code_c = code_c.replace("{kernel}", knl_call)
+
+        code_h = "\n".join([knl_sig, TABULATE_H])
+
+        return code_c, code_h
+
+
+class DenseProductKernel(BasicKernel):
+    def __init__(self):
+        super().__init__()
+
+        self.kernel_call = self.kernel_call = """
+        {
             double acc_knl;
             for (int i = 0; i < N_DOF; ++i) {
                 for (int j = 0; j < N_DOF; ++j) {
@@ -516,128 +552,132 @@ class cffi_kernels:
                     A_T[i*N_DOF + j] = acc_knl;
                 }
             }
-        }"""
-
-        return code
-
-    # Following code does not generalize to arbitrary elements
-    '''
-    @staticmethod
-    def kernel_avx(knl_name: str):
-        code = """
-    #include <immintrin.h>
-    void {knl_name}(double *restrict A_T, 
-                         double const *restrict A0, 
-                         double const *restrict G_T)
-    {
-        for (int i = 0; i <= 3; ++i) {
-            for (int j = 0; j <= 3; ++j) {
-                __m256d g1 = _mm256_load_pd(&G_T[0]);
-                __m256d a1 = _mm256_load_pd(&A0[36 * i + 9 * j + 0]);
-                __m256d res1 = _mm256_mul_pd(g1, a1);
-    
-                __m256d g2 = _mm256_load_pd(&G_T[4]);
-                __m256d a2 = _mm256_load_pd(&A0[36 * i + 9 * j + 4]);
-                __m256d res2 = _mm256_fmadd_pd(g2, a2, res1);
-                __m256d res3 = _mm256_hadd_pd(res2, res2);
-    
-                A_T[4 * i + j] = ((double*)&res3)[0] + ((double*)&res3)[2] + A0[36 * i + 9 * j + 8]*G_T[8];
-            }
-        }    
-    }""".replace("{knl_name}", knl_name)
-
-        header = """void {knl_name}(double *restrict A_T, 
-                                        double const *restrict A0, 
-                                        double const *restrict G_T);
-            """.replace("{knl_name}", knl_name)
-
-        return code, header
-    '''
-
-    @staticmethod
-    def kernel_sparse(knl_name: str):
-        code = """
-    void {knl_name}(double *restrict A_T, 
-                         double const *restrict A0_vals,
-                         int const *restrict A0_col_idx,
-                         int const *restrict A0_row_ptr, 
-                         double const *restrict G_T)
-    {   
-        double acc_A;
-        for (int i = 0; i < AT_SIZE; ++i) {
-            acc_A = 0;
-
-            for (int j = A0_row_ptr[i]; j < A0_row_ptr[i+1]; ++j) {
-                acc_A += A0_vals[j] * G_T[A0_col_idx[j]];
-            }
-
-            A_T[i] = acc_A;
         }
-    }""".replace("{knl_name}", knl_name)
+        """
 
-        header = """void {knl_name}(double *restrict A_T, 
-                                    double const *restrict A0_vals,
-                                    int const *restrict A0_col_idx,
-                                    int const *restrict A0_row_ptr, 
-                                    double const *restrict G_T);
-        """.replace("{knl_name}", knl_name)
 
-        return code, header
+class SparseProductKernel(BasicKernel):
+    def __init__(self, **kwargs):
+        super().__init__()
 
-    @staticmethod
-    def kernel_sparse_avx(knl_name: str):
-        code = """
-    #include <immintrin.h>
-    void {knl_name}(double *restrict A_T, 
-                         double const *restrict A0_vals,
-                         int const *restrict A0_col_idx,
-                         int const *restrict A0_row_ptr, 
-                         double const *restrict G_T)
-    {   
-        // A0 * G_T multiplication, vectorized
-        alignas(32) double A_T_scattered[A0_NNZ];
-        for (int i = 0; i < VECTORIZED_NNZ; i+=4) {
-            __m256d a0 = _mm256_load_pd(&A0_vals[i]);
-            __m256d g = _mm256_set_pd(G_T[A0_col_idx[i+3]], 
-                                      G_T[A0_col_idx[i+2]], 
-                                      G_T[A0_col_idx[i+1]], 
-                                      G_T[A0_col_idx[i]]);
-            __m256d res = _mm256_mul_pd(a0, g);
-            _mm256_store_pd(&A_T_scattered[i], res);
-        }
-        
-        #if VECTORIZED_NNZ != A0_NNZ
-        // A0 * G_T multiplication, remainder
-        for (int i = VECTORIZED_NNZ; i < A0_NNZ; ++i) {
-            A_T_scattered[i] = A0_vals[i]*G_T[A0_col_idx[i]];
-        }
-        #endif
-        
-        // Reduce
-        double acc_A;
-        for (int i = 0; i < AT_SIZE; ++i) {
-            acc_A = 0;
+        self.kernel_code ="""
+            void {knl_name}(
+                double *restrict A_T, 
+                double const *restrict A0_vals,
+                int const *restrict A0_col_idx,
+                int const *restrict A0_row_ptr, 
+                double const *restrict G_T)
+            {   
+                double acc_A;
+                for (int i = 0; i < AT_SIZE; ++i) {
+                    acc_A = 0;
             
-            for (int j = A0_row_ptr[i]; j < A0_row_ptr[i+1]; ++j) {
-                acc_A += A_T_scattered[j];
-            }
+                    for (int j = A0_row_ptr[i]; j < A0_row_ptr[i+1]; ++j) {
+                        acc_A += A0_vals[j] * G_T[A0_col_idx[j]];
+                    }
             
-            A_T[i] = acc_A;
-        }
-    }""".replace("{knl_name}", knl_name)
+                    A_T[i] = acc_A;
+                }
+            }"""
 
-        header = """void {knl_name}(double *restrict A_T, 
-                                    double const *restrict A0_vals,
-                                    int const *restrict A0_col_idx,
-                                    int const *restrict A0_row_ptr, 
-                                    double const *restrict G_T);
-        """.replace("{knl_name}", knl_name)
+        self.kernel_header = """
+            void {knl_name}(
+                double *restrict A_T, 
+                double const *restrict A0_vals,
+                int const *restrict A0_col_idx,
+                int const *restrict A0_row_ptr, 
+                double const *restrict G_T);"""
 
-        return code, header
+        self.kernel_call = "{knl_name}(A_T, &A0_vals[0], &A0_col_idx[0], &A0_row_ptr[0], &G_T[0]);"
 
-    @staticmethod
-    def kernel_loopy(knl_name: str, n_dof: int, n_dim: int, verbose: bool = False):
+    def kernel(self, knl_name: str, verbose: bool = False, **kwargs):
+        if verbose:
+            print("Using manual kernel on sparse tensor (no AVX).")
+
+        return super().kernel(knl_name)
+
+
+class SparseProductKernelAVX(SparseProductKernel):
+    def __init__(self, **kwargs):
+        super().__init__()
+
+        self.kernel_code = """#include <immintrin.h>
+            void {knl_name}(
+                double *restrict A_T, 
+                double const *restrict A0_vals,
+                int const *restrict A0_col_idx,
+                int const *restrict A0_row_ptr, 
+                double const *restrict G_T)
+            {   
+                // A0 * G_T multiplication, vectorized
+                alignas(32) double A_T_scattered[A0_NNZ];
+                for (int i = 0; i < VECTORIZED_NNZ; i+=4) {
+                    __m256d a0 = _mm256_load_pd(&A0_vals[i]);
+                    __m256d g = _mm256_set_pd(G_T[A0_col_idx[i+3]], 
+                                              G_T[A0_col_idx[i+2]], 
+                                              G_T[A0_col_idx[i+1]], 
+                                              G_T[A0_col_idx[i]]);
+                    __m256d res = _mm256_mul_pd(a0, g);
+                    _mm256_store_pd(&A_T_scattered[i], res);
+                }
+                
+                #if VECTORIZED_NNZ != A0_NNZ
+                // A0 * G_T multiplication, remainder
+                for (int i = VECTORIZED_NNZ; i < A0_NNZ; ++i) {
+                    A_T_scattered[i] = A0_vals[i]*G_T[A0_col_idx[i]];
+                }
+                #endif
+                
+                // Reduce
+                double acc_A;
+                for (int i = 0; i < AT_SIZE; ++i) {
+                    acc_A = 0;
+                    
+                    for (int j = A0_row_ptr[i]; j < A0_row_ptr[i+1]; ++j) {
+                        acc_A += A_T_scattered[j];
+                    }
+                    
+                    A_T[i] = acc_A;
+                }
+            }"""
+
+    def kernel(self, knl_name: str, verbose: bool = False, **kwargs):
+        if verbose:
+            print("Using manual AVX kernel on sparse tensor.")
+
+        return super().kernel(knl_name)
+
+
+class LoopyKernel():
+    def __init__(self, n_dof: int, n_dim: int, **kwargs):
+        self.kernel_code = ""
+        self.kernel_header = ""
+        self.kernel_call = ""
+
+        self.n_dof = n_dof
+        self.n_dim = n_dim
+
+    def kernel(self, knl_name: str, verbose: bool = False, **kwargs):
+        if verbose:
+            print("Using Loopy generated kernel.")
+
+        knl_c, knl_h = self.__generate_loopy(knl_name, verbose)
+
+        knl_call = f"{knl_name}(A_T, &A0[0], &G_T[0]);"
+        knl_impl = knl_c + "\n"
+        knl_sig = knl_h + "\n"
+
+        code_c = "\n".join([knl_impl, TABULATE_C])
+        code_c = code_c.replace("{kernel}", knl_call)
+
+        code_h = "\n".join([knl_sig, TABULATE_H])
+
+        return code_c, code_h
+
+    def __generate_loopy(self, knl_name: str, verbose: bool = False, **kwargs):
         """Generate cell kernel for the Laplace operator using Loopy"""
+
+        n_dof, n_dim = self.n_dof, self.n_dim
 
         # Inputs to the kernel
         arg_names = ["A_T", "A0", "G_T"]
@@ -667,7 +707,7 @@ class cffi_kernels:
         # Input arguments for the loopy kernel
         n, m = params["n"], params["m"]
         lp_args = {"A_T": lp.GlobalArg("A_T", dtype=np.double, shape=(n, n)),
-                   "A0" : lp.GlobalArg("A0" , dtype=np.double, shape=(n, n, m)),
+                   "A0": lp.GlobalArg("A0", dtype=np.double, shape=(n, n, m)),
                    "G_T": lp.GlobalArg("G_T", dtype=np.double, shape=(m))}
 
         # Generate the list of arguments & parameters that will be passed to loopy
@@ -677,10 +717,10 @@ class cffi_kernels:
 
         # Build the kernel instruction: computation and assignment of the element matrix
         def build_ass():
-            #A_T[i,j] = sum(k, A0[i,j,k] * G_T[k]);
+            # A_T[i,j] = sum(k, A0[i,j,k] * G_T[k]);
 
             # Get variable symbols for all required variables
-            i,j,k = inames["i"], inames["j"], inames["k"]
+            i, j, k = inames["i"], inames["j"], inames["k"]
             A_T, A0, G_T = args["A_T"], args["A0"], args["G_T"]
 
             # The target of the assignment
@@ -711,7 +751,7 @@ class cffi_kernels:
             target=lp.CTarget(),
             lang_version=lp.MOST_RECENT_LANGUAGE_VERSION)
 
-        knl = lp.fix_parameters(knl, n=n_dof, m=n_dim**2)
+        knl = lp.fix_parameters(knl, n=n_dof, m=n_dim ** 2)
         knl = lp.prioritize_loops(knl, "i,j")
 
         if verbose:
@@ -733,73 +773,31 @@ class cffi_kernels:
         return knl_c, knl_h
 
 
-def compile_poisson_kernel(module_name: str, element: FiniteElement, verbose: bool = False):
-    useFFCCode = False
+class FFCKernel():
+    def __init__(self, **kwargs):
+        self.kernel_code = TABULATE_C_FFC_P2
+        self.kernel_header = TABULATE_H
+        self.kernel_call = ""
 
+    def kernel(self, knl_name: str, verbose: bool = False, **kwargs):
+        if (verbose):
+            print("Using FFC generated kernel code.")
+
+        return self.kernel_code, self.kernel_header
+
+
+def compile_poisson_kernel(module_name: str,
+                           kernel,
+                           reference_tensor: ReferenceTensor,
+                           verbose: bool = False):
     knl_name = "kernel_tensor_A"
-    A0_code, n_dof, n_dim = reference_tensor(element)
+    knl_impl, knl_sig = kernel.kernel(knl_name, verbose=verbose)
 
-    def useLoopy():
-        print("Using Loopy generated kernel.")
-        knl_c, knl_h = cffi_kernels.kernel_loopy(knl_name, n_dof, n_dim, verbose)
-
-        knl_call = f"{knl_name}(A_T, &A0[0], &G_T[0]);"
-        knl_impl = knl_c + "\n"
-        knl_sig = knl_h + "\n"
-
-        return knl_call, knl_impl, knl_sig
-
-    '''
-    def useAVX():
-        print("Using manual naive AVX kernel.")
-        knl_c, knl_h = cffi_kernels.kernel_avx(knl_name)
-
-        # Use hand written kernel
-        knl_call = f"{knl_name}(A_T, &A0[0], &G_T[0]);"
-        knl_impl = knl_c + "\n"
-        knl_sig = knl_h + "\n"
-
-        return knl_call, knl_impl, knl_sig
-    '''
-
-    def useSparse():
-        print("Using manual kernel on sparse tensor (no AVX).")
-        knl_c, knl_h = cffi_kernels.kernel_sparse(knl_name)
-
-        # Use hand written kernel
-        knl_call = f"{knl_name}(A_T, &A0_vals[0], &A0_col_idx[0], &A0_row_ptr[0], &G_T[0]);"
-        knl_impl = knl_c + "\n"
-        knl_sig = knl_h + "\n"
-
-        return knl_call, knl_impl, knl_sig
-
-    def useSparseAvx():
-        print("Using manual AVX kernel on sparse tensor.")
-        knl_c, knl_h = cffi_kernels.kernel_sparse_avx(knl_name)
-
-        # Use hand written kernel
-        knl_call = f"{knl_name}(A_T, &A0_vals[0], &A0_col_idx[0], &A0_row_ptr[0], &G_T[0]);"
-        knl_impl = knl_c + "\n"
-        knl_sig = knl_h + "\n"
-
-        return knl_call, knl_impl, knl_sig
-
-    if useFFCCode:
-        code_c = "\n".join([A0_code, TABULATE_C_FFC_P2])
-        code_h = TABULATE_H
-    else:
-        knl_call, knl_impl, knl_sig = useSparseAvx()
-
-        # Concatenate code of kernel and tabulate_tensor functions
-        code_c = "\n".join([A0_code, knl_impl, TABULATE_C])
-        # Insert code to execute kernel
-        code_c = code_c.replace("{kernel}", knl_call)
-
-        code_h = "\n".join([knl_sig, TABULATE_H])
+    A0_code = reference_tensor.code()
 
     # Append timing test function
-    code_c = "\n".join(["#include <stdalign.h>\n", code_c, TEST_CODE_C])
-    code_h = "\n".join([code_h, TEST_CODE_H])
+    code_c = "\n".join(["#include <stdalign.h>\n", A0_code, knl_impl, TEST_CODE_C])
+    code_h = "\n".join([knl_sig, TEST_CODE_H])
 
     # Additional compiler arguments
     compile_args = ["-O2",
@@ -930,6 +928,7 @@ def solve():
 
     element = FiniteElement("P", tetrahedron, 2)
     Q = FunctionSpace(mesh, element)
+    A0 = ReferenceTensor(element)
 
     u = TrialFunction(Q)
     v = TestFunction(Q)
@@ -940,6 +939,18 @@ def solve():
 
     u0 = Constant(0.0)
     bc = DirichletBC(Q, u0, boundary)
+
+    # Define the kernel generators
+    kernels = {
+        "ffc": lambda : FFCKernel(),
+        "dense": lambda : DenseProductKernel(),
+        "sparse": lambda : SparseProductKernel(),
+        "sparse_avx": lambda : SparseProductKernelAVX(),
+        "loopy": lambda : LoopyKernel(n_dof=A0.n_dof, n_dim=A0.n_dim)
+    }
+
+    # Select the kernel generator that should be used
+    kernel = kernels["loopy"]()
 
     if useCustomKernels:
         # Initialize bilinear form and rhs
@@ -956,14 +967,15 @@ def solve():
         fnL = nb.cfunc(sig, cache=True, nopython=True)(numba_kernels.tabulate_tensor_L)
 
         module_name = "_laplace_kernel"
-        compile_poisson_kernel(module_name, element, verbose=True)
+        compile_poisson_kernel(module_name, kernel, A0, verbose=True)
         print("Finished compiling kernel.")
 
         # Import the compiled kernel
         kernel_mod = importlib.import_module(f"simd.tmp.{module_name}")
         ffi, lib = kernel_mod.ffi, kernel_mod.lib
 
-        n_runs = 20
+        # Make timing test runs of the tabulate tensor function
+        n_runs = 1
         test_callable = lambda : lib.call_tabulate(n)
         time_avg, time_min, time_max = utils.timing(n_runs, test_callable, verbose=True)
         print(f"Timings for tabulate calls (n={n_runs}) avg: {round(time_avg*1000, 2)}ms, min: {round(time_min*1000, 2)}ms, max: {round(time_max*1000, 2)}ms")
@@ -1003,7 +1015,7 @@ def solve():
     assembly_callable = lambda : assembler.assemble(A, dolfin.cpp.fem.Assembler.BlockType.monolithic)
 
     # Get timings for assembly of matrix over several runs
-    n_runs = 20
+    n_runs = 2
     time_avg, time_min, time_max = utils.timing(n_runs, assembly_callable, verbose=True)
     print(f"Timings for element matrix assembly (n={n_runs}) avg: {round(time_avg*1000, 2)}ms, min: {round(time_min*1000, 2)}ms, max: {round(time_max*1000, 2)}ms")
 
@@ -1016,6 +1028,7 @@ def solve():
     bnorm = b.norm(dolfin.cpp.la.Norm.l2)
     print(Anorm, bnorm)
 
+    # Check norms of assembled system
     if useCustomKernels:
         # Norms obtained with FFC and n=22
         assert (np.isclose(Anorm, 118.19435458024503))
@@ -1023,6 +1036,7 @@ def solve():
 
     return
 
+    # Solve the system
     comm = L.mesh().mpi_comm()
     solver = PETScKrylovSolver(comm)
 
