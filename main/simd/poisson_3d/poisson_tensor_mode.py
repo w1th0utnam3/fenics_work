@@ -537,11 +537,51 @@ class BasicKernel():
         return code_c, code_h
 
 
-class DenseProductKernel(BasicKernel):
+class GeometryOnlyKernel(BasicKernel):
+    """Kernel that only computes the geometry tensor and contracts it into A_T[0]"""
+
     def __init__(self):
         super().__init__()
 
-        self.kernel_call = self.kernel_call = """
+        self.kernel_call = """
+            A_T[0] = G_T[0] + G_T[1] + G_T[2] + G_T[3] + G_T[4] + G_T[5] +G_T[6]+G_T[7]+G_T[8]; 
+        """
+
+
+class EmptyKernel():
+    """Completely empty kernel"""
+
+    def __init__(self):
+        pass
+
+    def kernel(self, knl_name: str, **kwargs):
+        code_c = """
+            void tabulate_tensor_A(
+                double* A_T, 
+                const double* const* w, 
+                const double* restrict coords, 
+                int cell_orientation)
+            {
+                return;
+            }
+        """
+
+        code_h = "void tabulate_tensor_A(double* A_T, const double* const* w, const double* restrict coords, int cell_orientation);"
+
+        return code_c, code_h
+
+
+class DenseProductKernel(BasicKernel):
+    """Compute the element tensor using the dense reference tensor"""
+
+    def __init__(self):
+        super().__init__()
+
+        self.kernel_code = """
+        void kernel_tensor_A(
+            double *restrict A_T, 
+            double const *restrict A0, 
+            double const *restrict G_T)
         {
             double acc_knl;
             for (int i = 0; i < N_DOF; ++i) {
@@ -555,6 +595,9 @@ class DenseProductKernel(BasicKernel):
             }
         }
         """
+
+        self.kernel_header = "void kernel_tensor_A(double *restrict A_T, double const *restrict A0, double const *restrict G_T);"
+        self.kernel_call = "kernel_tensor_A(A_T, &A0[0], &G_T[0]);"
 
 
 class SparseProductKernel(BasicKernel):
@@ -1067,13 +1110,15 @@ def timing_tests(n_runs: int,
 def run_example():
     # Mesh size, (n+1)^3 vertices
     n = 80
-    n_runs = 20
+    n_runs = 10
 
     element = FiniteElement("P", tetrahedron, 2)
     A0 = ReferenceTensor(element)
 
     # Define the kernel generators
     kernels = {
+        "empty": lambda: EmptyKernel(),
+        "only_geometry": lambda: GeometryOnlyKernel(),
         "ffc": lambda: FFCKernel(),
         "dense": lambda: DenseProductKernel(),
         "sparse": lambda: SparseProductKernel(),
@@ -1081,16 +1126,17 @@ def run_example():
         "loopy": lambda: LoopyKernel(n_dof=A0.n_dof, n_dim=A0.n_dim)
     }
 
+    name_length = max([len(kernel) for kernel in kernels.keys()])
     results = {kernel : timing_tests(n_runs, n, A0, kernel_gen(), postfix=kernel) for kernel, kernel_gen in kernels.items()}
     print("\n")
-    print(f"Runtime of tablute_tensor_calls, mesh with {6*n**3} elements, average over {n_runs} runs, avg/min/max in ms:")
+    print(f"Runtime of tablute_tensor_calls, mesh with {6*n**3} elements, average over {n_runs} runs\navg/min/max in ms:")
     for kernel, result in results.items():
         time_avg, time_min, time_max = result
         print(
-            f"{kernel}\t"
-            f"{round(time_avg*1000, 2)}\t"
-            f"{round(time_min*1000, 2)}\t"
-            f"{round(time_max*1000, 2)}\t")
+            f"{kernel:<{name_length+1}}\t"
+            f"{time_avg*1000:>8.2f}\t"
+            f"{time_min*1000:>8.2f}\t"
+            f"{time_max*1000:>8.2f}\t")
 
     """
     # Select the kernel generator that should be used
