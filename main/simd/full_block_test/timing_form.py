@@ -2,6 +2,8 @@ import os
 import cffi
 import importlib
 
+import numpy as np
+
 import simd.utils as utils
 
 def compile(module_name: str,
@@ -40,10 +42,13 @@ def compile(module_name: str,
 
 def run_example():
     # Mesh size, (n+1)^3 vertices
-    n = 6*10**3
+    n = 6*100**3
     n_runs = 10
 
     ffi, lib = compile("_some_form", verbose=False)
+
+    # Check that the functions calculate the same values
+    assert (np.isclose(lib.call_tabulate_ffc(1), lib.call_tabulate_avx(1)))
 
     # Define the kernel generators
     kernels = {

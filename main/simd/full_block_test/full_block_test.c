@@ -646,12 +646,15 @@ double call_tabulate_avx(int n)
         {0.0, 0.0, 1.0}
     };
 
-    double result = 0.0;
+	alignas(32) double A_T[AT_SIZE];
     for(int i = 0; i < n; ++i) {
-        alignas(32) double A_T[AT_SIZE];
         tabulate_tensor_avx(&A_T[0], &w[0], &coords[0][0], 0);
-        result += A_T[0];
     }
+
+	double result = 0.0;
+	for(int i = 0; i < AT_SIZE; ++i) {
+		result += fabs(A_T[i]);
+	}
     
     return result;
 }
@@ -671,12 +674,15 @@ double call_tabulate_ffc(int n)
         {0.0, 0.0, 1.0}
     };
 
-    double result = 0.0;
+	alignas(32) double A_T[AT_SIZE];
     for(int i = 0; i < n; ++i) {
-        alignas(32) double A_T[AT_SIZE];
         tabulate_tensor_ffc(&A_T[0], &w[0], &coords[0][0], 0);
-        result += A_T[0];
     }
+
+	double result = 0.0;
+	for(int i = 0; i < AT_SIZE; ++i) {
+		result += fabs(A_T[i]);
+	}
     
     return result;
 }
