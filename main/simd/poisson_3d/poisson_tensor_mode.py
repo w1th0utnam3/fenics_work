@@ -17,15 +17,42 @@ import importlib
 import itertools
 
 import os
+import hashlib
 
 import simd.utils as utils
 from simd.generate_ref_tensor import generate_ref_tensor
 
 
-# C code for Laplace operator tensor tabulation
-TABULATE_C = """
-void tabulate_tensor_A(double* A_T, const double* const* w, double* coords, int cell_orientation)
+TEST_CODE_C = """double call_tabulate(int n)
 {
+    alignas(32) static const double coords[4][3] = {
+        {0.0, 0.0, 0.0},
+        {1.0, 0.0, 0.0},
+        {0.0, 1.0, 0.0},
+        {0.0, 0.0, 1.0}
+    };
+
+    double result = 0.0;
+    for(int i = 0; i < 6*n*n*n; ++i) {
+        alignas(32) double A_T[AT_SIZE] = {0.0};
+        tabulate_tensor_A(&A_T[0], NULL, &coords[0][0], 0);
+        result += A_T[0];
+    }
+    
+    return result;
+}
+"""
+
+TEST_CODE_H = """double call_tabulate(int n);"""
+
+
+# C code for Laplace operator tensor tabulation
+TABULATE_C = """void tabulate_tensor_A(
+    double* A_T, 
+    const double* const* w, 
+    const double* restrict coords, 
+    int cell_orientation)
+{    
     // Compute cell geometry tensor G_T
     alignas(32) double G_T[9];
     {
@@ -87,10 +114,11 @@ void tabulate_tensor_A(double* A_T, const double* const* w, double* coords, int 
 """
 
 # P1(Tet)
-TABULATE_C_FFC_P1 = """#include <stdalign.h>
-void tabulate_tensor_A(double* restrict A, const double* const* w,
-                       const double* restrict coordinate_dofs,
-                       int cell_orientation)
+TABULATE_C_FFC_P1 = """void tabulate_tensor_A(
+    double* restrict A, 
+    const double* const* w,
+    const double* restrict coordinate_dofs,
+    int cell_orientation)
 {
     // Precomputed values of basis functions and precomputations
     // FE* dimensions: [entities][points][dofs]
@@ -208,8 +236,7 @@ void tabulate_tensor_A(double* restrict A, const double* const* w,
 """
 
 # P2(Tet)
-TABULATE_C_FFC_P2 = """#include <stdalign.h>
-void tabulate_tensor_A(
+TABULATE_C_FFC_P2 = """void tabulate_tensor_A(
     double* restrict A, 
     const double* const* w,
     const double* restrict coordinate_dofs,
@@ -415,9 +442,7 @@ void tabulate_tensor_A(
 """
 
 # C header for Laplace operator tensor tabulation
-TABULATE_H = """
-void tabulate_tensor_A(double* A, const double* const* w, double* coords, int cell_orientation);
-"""
+TABULATE_H = """void tabulate_tensor_A(double* A, const double* const* w, const double* restrict coordinate_dofs, int cell_orientation);"""
 
 
 def reference_tensor(element: FiniteElement):
@@ -437,6 +462,7 @@ def reference_tensor(element: FiniteElement):
 
     # Eliminate negative zeros
     A0[A0 == 0] = 0
+    print(f"Sparsity ratio of reference tensor (number zeros / size): {round(np.sum(A0 == 0) / A0.size, 3)}")
 
     assert (A0.shape[0] == A0.shape[1])
     assert (A0.shape[2] == A0.shape[3])
@@ -758,26 +784,55 @@ def compile_poisson_kernel(module_name: str, element: FiniteElement, verbose: bo
 
         return knl_call, knl_impl, knl_sig
 
-    knl_call, knl_impl, knl_sig = useSparse()
-
     if useFFCCode:
-        code_c = TABULATE_C_FFC_P2
+        code_c = "\n".join([A0_code, TABULATE_C_FFC_P2])
         code_h = TABULATE_H
     else:
+        knl_call, knl_impl, knl_sig = useSparseAvx()
+
         # Concatenate code of kernel and tabulate_tensor functions
-        code_c = "\n".join(["#include <stdalign.h>\n", A0_code, knl_impl, TABULATE_C])
+        code_c = "\n".join([A0_code, knl_impl, TABULATE_C])
         # Insert code to execute kernel
         code_c = code_c.replace("{kernel}", knl_call)
 
         code_h = "\n".join([knl_sig, TABULATE_H])
 
-    # Build the kernel
-    ffi = cffi.FFI()
-    ffi.set_source(module_name, code_c, extra_compile_args=["-O2",
-                                                            "-march=native",
-                                                            "-mtune=native"])
-    ffi.cdef(code_h)
-    ffi.compile(verbose=verbose)
+    # Append timing test function
+    code_c = "\n".join(["#include <stdalign.h>\n", code_c, TEST_CODE_C])
+    code_h = "\n".join([code_h, TEST_CODE_H])
+
+    # Additional compiler arguments
+    compile_args = ["-O2",
+                    "-funroll-loops",
+                    "-march=native",
+                    "-mtune=native"]
+
+    # Compute hash of the source code and compiler args
+    code_hash = hashlib.sha256("\n".join([code_c] + compile_args).encode()).hexdigest()
+
+    # Check if module with the same hash was already compiled
+    recompile = True
+    hash_filename = f"{module_name}.sha"
+    if (os.path.isfile(hash_filename)):
+        with open(hash_filename, "r") as file:
+            existing_hash = file.read()
+            recompile = existing_hash != code_hash
+
+    # Only recompile if hash changed
+    if recompile:
+        print(f"Module has hash {code_hash}. Compiling new module...")
+
+        # Build the kernel
+        ffi = cffi.FFI()
+        ffi.set_source(module_name, code_c, extra_compile_args=compile_args)
+        ffi.cdef(code_h)
+        ffi.compile(verbose=verbose)
+
+        # Write hash to file
+        with open(hash_filename, "w") as file:
+            file.write(code_hash)
+    else:
+        print(f"Module has hash {code_hash}, was already compiled, using cached version.")
 
 
 class numba_kernels:
@@ -901,12 +956,17 @@ def solve():
         fnL = nb.cfunc(sig, cache=True, nopython=True)(numba_kernels.tabulate_tensor_L)
 
         module_name = "_laplace_kernel"
-        compile_poisson_kernel(module_name, element, verbose=False)
+        compile_poisson_kernel(module_name, element, verbose=True)
         print("Finished compiling kernel.")
 
         # Import the compiled kernel
         kernel_mod = importlib.import_module(f"simd.tmp.{module_name}")
         ffi, lib = kernel_mod.ffi, kernel_mod.lib
+
+        n_runs = 20
+        test_callable = lambda : lib.call_tabulate(n)
+        time_avg, time_min, time_max = utils.timing(n_runs, test_callable, verbose=True)
+        print(f"Timings for tabulate calls (n={n_runs}) avg: {round(time_avg*1000, 2)}ms, min: {round(time_min*1000, 2)}ms, max: {round(time_max*1000, 2)}ms")
 
         # Get pointer to the compiled function
         fnA_ptr = ffi.cast("uintptr_t", ffi.addressof(lib, "tabulate_tensor_A"))
@@ -943,9 +1003,9 @@ def solve():
     assembly_callable = lambda : assembler.assemble(A, dolfin.cpp.fem.Assembler.BlockType.monolithic)
 
     # Get timings for assembly of matrix over several runs
-    n_runs = 10
+    n_runs = 20
     time_avg, time_min, time_max = utils.timing(n_runs, assembly_callable, verbose=True)
-    print(f"Timings for element matrix (n={n_runs}) avg: {round(time_avg*1000, 2)}ms, min: {round(time_min*1000, 2)}ms, max: {round(time_max*1000, 2)}ms")
+    print(f"Timings for element matrix assembly (n={n_runs}) avg: {round(time_avg*1000, 2)}ms, min: {round(time_min*1000, 2)}ms, max: {round(time_max*1000, 2)}ms")
 
     # Assemble again to get correct results
     A = PETScMatrix()
