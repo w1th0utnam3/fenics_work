@@ -15,13 +15,19 @@ def compile(module_name: str,
                     "-march=native": True,
                     "-mtune=native": True}
 
+    cur_path = os.path.dirname(os.path.abspath(__file__))
+    def get_file_as_str(filename: str):
+        with open(os.path.join(cur_path, filename), "r") as file:
+            strg = file.read()
+        return strg
+
     code_c, code_h = "", ""
 
-    cur_path = os.path.dirname(os.path.abspath(__file__))
-    with open(os.path.join(cur_path, "full_block_test.c"), "r") as file:
-        code_c = file.read()
-    with open(os.path.join(cur_path, "full_block_test.h"), "r") as file:
-        code_h = file.read()
+    code_c += get_file_as_str("full_block_test_avx.c")
+    code_c += get_file_as_str("full_block_test_ffc.c")
+    code_c += get_file_as_str("full_block_test.c")
+
+    code_h += get_file_as_str("full_block_test.h")
 
     # Build the kernel
     ffi = cffi.FFI()
@@ -42,8 +48,8 @@ def compile(module_name: str,
 
 def run_example():
     # Mesh size, (n+1)^3 vertices
-    n = 6*100**3
-    n_runs = 10
+    n = 50**3
+    n_runs = 1
 
     ffi, lib = compile("_some_form", verbose=False)
 
@@ -58,8 +64,9 @@ def run_example():
 
     name_length = max([len(kernel) for kernel in kernels.keys()])
     results = {kernel : utils.timing(n_runs, test_callable, verbose=True) for kernel, test_callable in kernels.items()}
-    print("\n")
-    print(f"Runtime of tablute_tensor_calls, mesh with {6*n**3} elements, average over {n_runs} runs\navg/min/max in ms:")
+
+    print("")
+    print(f"Runtime of tablute_tensor_calls, mesh with {n} elements, average over {n_runs} runs\navg/min/max in ms:")
     for kernel, result in results.items():
         time_avg, time_min, time_max = result
         print(
