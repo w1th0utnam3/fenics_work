@@ -35,7 +35,7 @@ def timing(n_runs: int, func, warm_up: bool = True, verbose: bool = True):
     avg = 0
 
     if verbose:
-        print(f"Timing (n={n_runs}): '{str(func)}' - ", end="", flush=True)
+        print(f"Timing (runs:{n_runs}): '{str(func)}' - ", end="", flush=True)
 
     # Call once without measurement "to get warm"
     if warm_up:

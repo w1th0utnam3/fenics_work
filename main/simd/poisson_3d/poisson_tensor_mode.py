@@ -1036,8 +1036,17 @@ def solve(n_runs: int,
     file.write(u, XDMFFile.Encoding.HDF5)
 
 
-def timing_tests(n_runs: int, mesh_size: int, reference_tensor: ReferenceTensor, kernel_generator):
+def timing_tests(n_runs: int,
+                 mesh_size: int,
+                 reference_tensor: ReferenceTensor,
+                 kernel_generator,
+                 **kwargs):
+
     module_name = "_laplace_kernel"
+
+    if "postfix" in kwargs:
+        module_name += "_" + kwargs["postfix"]
+
     compile_poisson_kernel(module_name, kernel_generator, reference_tensor, verbose=False)
     print("Finished compiling kernel.")
 
@@ -1057,7 +1066,8 @@ def timing_tests(n_runs: int, mesh_size: int, reference_tensor: ReferenceTensor,
 
 def run_example():
     # Mesh size, (n+1)^3 vertices
-    n = 22
+    n = 80
+    n_runs = 20
 
     element = FiniteElement("P", tetrahedron, 2)
     A0 = ReferenceTensor(element)
@@ -1071,12 +1081,25 @@ def run_example():
         "loopy": lambda: LoopyKernel(n_dof=A0.n_dof, n_dim=A0.n_dim)
     }
 
+    results = {kernel : timing_tests(n_runs, n, A0, kernel_gen(), postfix=kernel) for kernel, kernel_gen in kernels.items()}
+    print("\n")
+    print(f"Runtime of tablute_tensor_calls, mesh with {6*n**3} elements, average over {n_runs} runs, avg/min/max in ms:")
+    for kernel, result in results.items():
+        time_avg, time_min, time_max = result
+        print(
+            f"{kernel}\t"
+            f"{round(time_avg*1000, 2)}\t"
+            f"{round(time_min*1000, 2)}\t"
+            f"{round(time_max*1000, 2)}\t")
+
+    """
     # Select the kernel generator that should be used
     kernel = kernels["loopy"]()
-
+    
     # Perform timing tests of the tabulate_tensor calls
-    timing_tests(10, n, A0, kernel)
+    timing_tests(n_runs, n, A0, kernel)
     print("")
 
     # Assemble the system
-    solve(10, n, element, A0, kernel)
+    solve(n_runs, n, element, A0, kernel)
+    """
