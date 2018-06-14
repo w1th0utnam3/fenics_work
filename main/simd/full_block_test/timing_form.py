@@ -1,0 +1,64 @@
+import os
+import cffi
+import importlib
+
+import simd.utils as utils
+
+def compile(module_name: str,
+            verbose: bool = False):
+
+    # Additional compiler arguments
+    compile_args = {"-O2": True,
+                    "-funroll-loops": False,
+                    "-march=native": True,
+                    "-mtune=native": True}
+
+    code_c, code_h = "", ""
+
+    cur_path = os.path.dirname(os.path.abspath(__file__))
+    with open(os.path.join(cur_path, "full_block_test.c"), "r") as file:
+        code_c = file.read()
+    with open(os.path.join(cur_path, "full_block_test.h"), "r") as file:
+        code_h = file.read()
+
+    # Build the kernel
+    ffi = cffi.FFI()
+    ffi.set_source(module_name, code_c, extra_compile_args=[arg for arg, use in compile_args.items() if use])
+    ffi.cdef(code_h)
+    ffi.compile(verbose=verbose)
+
+    print("Finished compiling kernel.")
+
+    # Import the compiled kernel
+    kernel_mod = importlib.import_module(f"simd.tmp.{module_name}")
+    ffi, lib = kernel_mod.ffi, kernel_mod.lib
+
+    print("Imported kernel.")
+
+    return ffi, lib
+
+
+def run_example():
+    # Mesh size, (n+1)^3 vertices
+    n = 6*10**3
+    n_runs = 10
+
+    ffi, lib = compile("_some_form", verbose=False)
+
+    # Define the kernel generators
+    kernels = {
+        "ffc": lambda: lib.call_tabulate_ffc(n),
+        "avx": lambda: lib.call_tabulate_avx(n)
+    }
+
+    name_length = max([len(kernel) for kernel in kernels.keys()])
+    results = {kernel : utils.timing(n_runs, test_callable, verbose=True) for kernel, test_callable in kernels.items()}
+    print("\n")
+    print(f"Runtime of tablute_tensor_calls, mesh with {6*n**3} elements, average over {n_runs} runs\navg/min/max in ms:")
+    for kernel, result in results.items():
+        time_avg, time_min, time_max = result
+        print(
+            f"{kernel:<{name_length+1}}\t"
+            f"{time_avg*1000:>8.2f}\t"
+            f"{time_min*1000:>8.2f}\t"
+            f"{time_max*1000:>8.2f}\t")
