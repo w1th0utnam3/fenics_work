@@ -1,8 +1,12 @@
 # SIMD FEniCS project
 
-Working repository for the FEniCS Google Summer of Code SIMD project.
+Working repository for the [FEniCS Google Summer of Code SIMD project](https://flgsoc18.wordpress.com/2018/05/13/excited-for-fenics-and-gsoc/). Most code can be found in the [main/simd](main/simd) folder.
 
-## Docker image *(recommended)*
+## Development environment
+
+I perform most of the development on Windows using Docker. A longer introduction can be found on [my blog](https://flgsoc18.wordpress.com/2018/05/20/development-environment/) but for a quick start, the following sections should provide enough information.
+
+### Docker image *(recommended)*
 
 This repository provides a Dockerfile with all required components. In the root folder of the repository run
 ```
@@ -14,11 +18,18 @@ docker pull quay.io/w1th0utnam3/simd-work
 ```
 then start container with
 ```
-docker run -v ~/fenics_work:/local -it simd-work /bin/bash
+docker run -v [host path to repo]/fenics_work:/local/fenics_work -it simd-work /bin/bash
+```
+For development, the submodules in this repository (Dolfin-X, FFC-X, etc.) are mounted into the container and should be installed with `pip` in *editable* mode. To allow this, some `egg-info` folders have to be generated in the repositories. This has to be done once after first cloning this repository and is performed by the [`check_install.py`](main/simd/check_install.py) script:
+```
+docker run -v [host path to repo]/fenics_work:/local/fenics_work -it simd-work python3 /local/fenics_work/main/simd/check_install.py
 ```
 
-## Installing FEniCS locally *(not updated)*
-### Required packages
+### Installing FEniCS locally *(not updated)*
+
+Previously, I used a local installtion of FEniCS for development on linux and wrote an install script for this. However, I did not update it recently.
+
+#### Required packages
 The [dolfinx Dockerfile](https://github.com/FEniCS/dolfinx/blob/master/Dockerfile) shows which packages are required.
 As a single command:
 ```
@@ -51,10 +62,10 @@ sudo apt-get -y install \
     bash-completion
 ```
 
-### Install script
+#### Install script
 The `install_fenics.py` script downloads all major FEniCS components (fiat, ufl, dijisto, ffcx, dolfinx and Firedrake's tsfc, coffee, finat) from their repositories (master branch) and installs them in a python virtual environment.
 
-#### Options
+##### Options
 Currently, the script has the following options:
 ```
 usage: install_fenics.py [-h] [-r REPO_DIR] [-y] [-l | -co] [-j JOBS]
@@ -81,7 +92,7 @@ optional arguments:
 ```
 The `install_prefix` will contain the `fenics_env` virtual environment, the `dolfin` install directory, etc.
 
-#### Virtual environment
+##### Virtual environment
 In order to run the script, the `virtualenv` and `click` python packages are required. Install it using:
 ```
 pip3 install virtualenv click
@@ -91,7 +102,7 @@ Optionally, add the user python bin directory to your path in `~/.profile`:
 export PATH=$PATH:~/.local/bin
 ```
 
-### Activating the environment
+#### Activating the environment
 If the installtion folder was specified as `~/fenics`, the proper environment can be activated by
 ```
 source ~/fenics/fenics_env/bin/activate
@@ -100,7 +111,7 @@ export PETSC_DIR=~/fenics/petsc
 export SLEPC_DIR=~/fenics/slepc
 ```
 
-## Debugging
+### Debugging
 
 On Ubuntu the default core file size limit is 0. Use
 ```
