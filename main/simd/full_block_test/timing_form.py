@@ -13,8 +13,8 @@ def compile(module_name: str, verbose: bool = False):
         "-O2": True,
         "-funroll-loops": True,
         "-ftree-vectorize": True,
-        "-march=skylake": True,
-        "-mtune=skylake": True,
+        "-march=native": True,
+        "-mtune=native": True,
         "-fopenmp": True
     }
     # Remove disabled args
@@ -57,20 +57,21 @@ def compile(module_name: str, verbose: bool = False):
 
 def run_example():
     # Mesh size, (n+1)^3 vertices
-    n = 120**3
-    n_runs = 2
+    n = int(np.floor(120**3/4)*4)
+    n_runs = 5
 
     ffi, lib = compile("_full_block_timing", verbose=False)
 
     # Check that the functions calculate the same values
     assert (np.isclose(lib.call_tabulate_ffc(1), lib.call_tabulate_avx(1)))
+    assert (np.isclose(lib.call_tabulate_ffc(4), lib.call_tabulate_elem(4)))
     assert (np.isclose(lib.call_tabulate_ffc(2), lib.call_tabulate_ffc_padded(2)))
 
     # Define the kernel generators
     kernels = {
         "ffc"        : lambda: lib.call_tabulate_ffc(n),
         "ffc_padded" : lambda: lib.call_tabulate_ffc_padded(n),
-        "avx"        : lambda: lib.call_tabulate_avx(n),
+        "manual_avx" : lambda: lib.call_tabulate_avx(n),
         "elem"       : lambda: lib.call_tabulate_elem(n)
     }
 

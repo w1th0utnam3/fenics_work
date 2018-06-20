@@ -11,7 +11,7 @@ typedef void (*TabulateTensorFun)(
 double test_runner(int n, TabulateTensorFun fun)
 {
 	alignas(32) static const double weights[1][4] = {
-		{1.0, 1.0, 1.0, 1.0}
+		{1.1, 1.2, 1.3, 1.4}
 	};
 
 	static const double* w[1] = { &weights[0][0] };
@@ -36,13 +36,16 @@ double test_runner(int n, TabulateTensorFun fun)
     return result;
 }
 
-double test_elem(int n)
+double test_elem(int n, TabulateTensorFun fun)
 {
-	alignas(32) static const double weights[1][4] = {
-		{1.1, 1.2, 1.3, 1.4}
-	};
+	alignas(32) static const double weights[1][4][4] = {{
+		{1.1, 1.1, 1.1, 1.1}, 
+		{1.2, 1.2, 1.2, 1.2}, 
+		{1.3, 1.3, 1.3, 1.3}, 
+		{1.4, 1.4, 1.4, 1.4}
+	}};
 
-	static const double* w[1] = { &weights[0][0] };
+	static const double* w[1] = { &weights[0][0][0] };
 
     alignas(32) double coords[4][3][4] = {
         {{0.0}, {0.0}, {0.0}},
@@ -58,15 +61,13 @@ double test_elem(int n)
 		}
 	}
 
-	alignas(32) double A_T[4*AT_SIZE];
-    for(int i = 0; i < (int)(n/4); ++i) {
-		#pragma omp simd
-		for (int j = 0; j < 4; ++j)
-        	tabulate_tensor_elem(&A_T[0], &w[0], &coords[0][0][0], 0, j);
+	alignas(32) double A_T[4*AT_SIZE] = {0.0};
+    for(int i = 0; i < floor(n/4); ++i) {
+        fun(&A_T[0], &w[0], &coords[0][0][0], 0);
     }
 
 	double result = 0.0;
-	for(int i = 0; i < 4*AT_SIZE; ++i) {
+	for(int i = 0; i < 4*AT_SIZE; i+=4) {
 		result += fabs(A_T[i]);
 	}
     
@@ -75,7 +76,7 @@ double test_elem(int n)
 
 double call_tabulate_elem(int n)
 {
-    return test_elem(n);
+    return test_elem(n, &tabulate_tensor_elem);
 }
 
 double call_tabulate_avx(int n)
@@ -92,3 +93,5 @@ double call_tabulate_ffc_padded(int n)
 {   
     return test_runner(n, &tabulate_tensor_ffc_padded);
 }
+
+#undef AT_SIZE
