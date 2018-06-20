@@ -15,6 +15,7 @@ def compile(module_name: str, verbose: bool = False):
         "-ftree-vectorize": True,
         "-march=skylake": True,
         "-mtune=skylake": True,
+        "-fopenmp": True
     }
     # Remove disabled args
     active_compile_args = [arg for arg, use in compile_args.items() if use]
@@ -27,6 +28,7 @@ def compile(module_name: str, verbose: bool = False):
 
     code_c, code_h = "", ""
 
+    code_c += get_file_as_str("full_block_test_elem.c")
     code_c += get_file_as_str("full_block_test_avx.c")
     code_c += get_file_as_str("full_block_test_ffc.c")
     code_c += get_file_as_str("full_block_test_ffc_padded.c")
@@ -56,7 +58,7 @@ def compile(module_name: str, verbose: bool = False):
 def run_example():
     # Mesh size, (n+1)^3 vertices
     n = 120**3
-    n_runs = 5
+    n_runs = 2
 
     ffi, lib = compile("_full_block_timing", verbose=False)
 
@@ -68,7 +70,8 @@ def run_example():
     kernels = {
         "ffc"        : lambda: lib.call_tabulate_ffc(n),
         "ffc_padded" : lambda: lib.call_tabulate_ffc_padded(n),
-        "avx"        : lambda: lib.call_tabulate_avx(n)
+        "avx"        : lambda: lib.call_tabulate_avx(n),
+        "elem"       : lambda: lib.call_tabulate_elem(n)
     }
 
     name_length = max([len(kernel) for kernel in kernels.keys()])
