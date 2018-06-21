@@ -1,7 +1,5 @@
+#include <math.h
 #include <stdalign.h>
-
-#define N_ELEMS 4
-#define A_SIZE 100
 
 void tabulate_tensor_elem(
 	double* restrict A, 
@@ -414,5 +412,3 @@ void tabulate_tensor_elem(
             for (int i_elem = 0; i_elem < 4; ++i_elem)
                 A[i_elem + 4 * (10 * DM2[i] + DM2[j])] += BF8[i][j][i_elem];
 }
-
-#undef N_ELEMS
