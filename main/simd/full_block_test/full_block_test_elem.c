@@ -1,4 +1,4 @@
-#include <math.h
+#include <math.h>
 #include <stdalign.h>
 
 void tabulate_tensor_elem(
