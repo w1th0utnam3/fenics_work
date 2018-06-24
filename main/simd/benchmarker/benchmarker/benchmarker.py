@@ -259,6 +259,7 @@ def print_report(test_case: TestCase, report):
 
     # Loop over results of all forms
     for form_idx, (form_name, form_results) in enumerate(report.items()):
+        print("{}".format(form_name))
         print("Results for form '{}', test run with n={} elements".format(form_name, test_case.forms[form_idx].n_elems))
 
         for i, compiler_arg_set in enumerate(test_case.compiler_args):
