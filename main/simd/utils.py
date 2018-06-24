@@ -2,13 +2,13 @@ import time
 import string
 import numpy as np
 
+from typing import Iterable, Tuple
 
-def replace_strings(text: str, replacement_pair_list):
+def replace_strings(text: str, replacement_pair_list: Iterable[Tuple[str, str]]) -> str:
     """Performs replacement of all tuples in the supplied list on the string"""
 
     new_text = text
-    for pair in replacement_pair_list:
-        old, new = pair
+    for old, new in replacement_pair_list:
         new_text = new_text.replace(old, new)
     return new_text
 
@@ -27,7 +27,7 @@ def scipy2numpy(scipy_obj):
     return np_mat
 
 
-def timing(n_runs: int, func, warm_up: bool = True, verbose: bool = True):
+def timing(n_runs: int, func, warm_up: bool = True, verbose: bool = True) -> Tuple[float, float, float]:
     """Measures avg, min and max execution time of 'func' over 'n_runs' executions"""
 
     lower = float('inf')
