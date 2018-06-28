@@ -1,7 +1,7 @@
 import cffi
 import importlib
 import numpy as np
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from benchmarker.types import BenchmarkReport, TestCase, TestRunArgs, FormTestData, FormTestResult
 
@@ -11,12 +11,13 @@ import simd.utils as utils
 def compile_cffi(module_name: str,
                  code_c: str,
                  code_h: str,
+                 define_macros: List[Tuple[str,str]] = None,
                  compiler_args: List[str] = None,
                  verbose: bool = False) -> str:
     """Compiles a module from the specified source code using CFFI."""
 
     ffi = cffi.FFI()
-    ffi.set_source(module_name, code_c, extra_compile_args=compiler_args)
+    ffi.set_source(module_name, code_c, define_macros=define_macros, extra_compile_args=compiler_args)
     ffi.cdef(code_h)
     lib = ffi.compile(verbose=verbose)
 
