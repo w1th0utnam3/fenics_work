@@ -1,3 +1,6 @@
+import os
+import json
+
 import numpy as np
 from copy import copy
 from typing import Dict, Tuple
@@ -110,7 +113,7 @@ def generate_benchmark_code(test_case: TestCase) -> Tuple[Dict, str, str]:
             raw_function_name, raw_code = compile_form(form, form_def.form_name + "_" + str(j),
                                                        extra_ffc_args=ffc_arg_set)
             # Wrap tabulate_tensor code in test runner function
-            test_name = "_test_runner" + raw_function_name
+            test_name = "_test_runner_" + raw_function_name
             code, signature = wrap_tabulate_tensor_code(test_name, raw_function_name, raw_code, form_def,
                                                         cross_element_width)
 
@@ -254,10 +257,63 @@ def print_report(test_case: TestCase, report: BenchmarkReport):
         print("")
 
 
+def save_generated_test_case_data(name: str, test_fun_names: Dict, code_c: str, code_h: str, path: str = ""):
+    """
+    Stores the specified generated test case data in a set of files.
+
+    :param name: The base name for the set files.
+    :param path: Optional path where the files should be stored (otherwise uses working directory).
+    """
+
+    output_basename = os.path.join(path, name)
+
+    def store_string(filename: str, content: str):
+        with open(filename, mode="w") as f:
+            f.write(content)
+
+    test_fun_json = json.dumps(test_fun_names, indent=4)
+    store_string(output_basename + "_funs.json", test_fun_json)
+    store_string(output_basename + "_code.c", code_c)
+    store_string(output_basename + "_code.h", code_h)
+
+
+def load_generated_test_case_data(name: str, path: str = "") ->  Tuple[Dict, str, str]:
+    """
+    Loads a set of generated test case data from files.
+
+    :param name: The base name for the set of files as given to the save function.
+    :param path: Optional path where the file are stored (otherwise uses working directory).
+    :return: Tuple that can be used as input to run a benchmark.
+    """
+
+    input_basename = os.path.join(path, name)
+
+    def load_string(filename: str) -> str:
+        with open(filename, mode="r") as f:
+            content = f.read()
+            return content
+
+    test_fun_json = load_string(input_basename + "_funs.json")
+    code_c = load_string(input_basename + "_code.c")
+    code_h = load_string(input_basename + "_code.h")
+
+    test_fun_names = json.loads(test_fun_json)
+    return test_fun_names, code_c, code_h
+
+
 def run():
     test_case = gen_test_case()
 
     test_fun_names, code_c, code_h = generate_benchmark_code(test_case)
+
+    save_generated_test_case_data("some_test", test_fun_names, code_c, code_h)
+
+    del test_fun_names
+    del code_c
+    del code_h
+
+    test_fun_names, code_c, code_h = load_generated_test_case_data("some_test")
+
     report = run_benchmark(test_case, test_fun_names, code_c, code_h)
     print_report(test_case, report)
 
