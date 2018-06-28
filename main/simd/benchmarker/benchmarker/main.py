@@ -65,6 +65,12 @@ def gen_test_case() -> TestCase:
         ffc_args=ffc_default
     )
 
+    four_elements_0 = TestRunArgs(
+        name="4x ce, gcc exts",
+        cross_element_width=4,
+        ffc_args={"optimize": True, "enable_cross_element_gcc_ext": True}
+    )
+
     four_elements_1 = TestRunArgs(
         name="4x ce, scalar sp",
         cross_element_width=4,

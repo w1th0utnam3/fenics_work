@@ -74,10 +74,13 @@ def generate_benchmark_code(test_case: TestCase) -> Tuple[Dict, str, str]:
             # Run FFC (tabulate_tensor code generation)
             raw_function_name, raw_code = compile_form(form, form_def.form_name + "_" + str(j),
                                                        extra_ffc_args=ffc_arg_set)
+
+            gcc_ext_enabled = run_arg_set.ffc_args.get("enable_cross_element_gcc_ext", False)
+
             # Wrap tabulate_tensor code in test runner function
             test_name = "_test_runner_" + raw_function_name
             code, signature = wrap_tabulate_tensor_code(test_name, raw_function_name, raw_code, form_def,
-                                                        cross_element_width)
+                                                        cross_element_width, gcc_ext_enabled)
 
             # Store generated content
             test_fun_names[form_def.form_name].append(test_name)

@@ -9,6 +9,7 @@ TEST_RUN_SKELETON = """
 #include <stdalign.h>
 
 typedef double ufc_scalar_t;
+typedef double double4 __attribute__ ((vector_size (32)));
 
 {tabulate_tensor_wrappers}
 """
@@ -49,7 +50,7 @@ double {test_runner_fun_name}(
 
     double result = 0.0;
     for(int i = 0; i < n; ++i) {
-        {tabulate_tensor_fun_name}(&A[0], (const double* const*)&w_ptrs[0], &coords[0][0], 0);
+        {tabulate_tensor_fun_name}(({scalar_type}*)&A[0], (const {scalar_type}* const*)&w_ptrs[0], (const {scalar_type}*)&coords[0][0], 0);
 
         // Reduce element tensor to use output
         for(int j = 0; j < A_SIZE; ++j) {
@@ -85,19 +86,33 @@ def wrap_tabulate_tensor_code(test_name: str,
                               function_name: str,
                               form_code: str,
                               form_def: FormTestData,
-                              cross_element_width: int = 1) -> Tuple[str, str]:
-    code_strs = {
-        "{A_SIZE_val}": str(form_def.element_tensor_size * cross_element_width),
-        "{W_DIM1_SIZE_val}": str(form_def.coefficients.shape[0]),
-        "{W_DIM2_SIZE_val}": str(form_def.coefficients.shape[1] * cross_element_width),
-        "{DOF_DIM1_SIZE_val}": str(form_def.coord_dofs.shape[0]),
-        "{DOF_DIM2_SIZE_val}": str(form_def.coord_dofs.shape[1] * cross_element_width),
-        "{test_runner_fun_name}": test_name,
-        "{tabulate_tensor_fun_name}": function_name,
-        "{tabulate_tensor_fun_code}": form_code
-    }
+                              cross_element_width: int = 1,
+                              gcc_ext_enabled: bool = False) -> Tuple[str, str]:
 
-    wrapped_code = utils.replace_strings(TEST_RUNNER_CODE, code_strs.items())
+    scalar_type = "double"
+    if gcc_ext_enabled:
+        replacement_args = [
+            ("ufc_scalar_t* restrict A", "double4* restrict A"),
+            ("const ufc_scalar_t* const* w", "const double4* const* w"),
+            ("const double* restrict coordinate_dofs", "const double4* restrict coordinate_dofs"),
+        ]
+
+        form_code = utils.replace_strings(form_code, replacement_args)
+        scalar_type = "double4"
+
+    code_strs = [
+        ("{A_SIZE_val}", str(form_def.element_tensor_size * cross_element_width)),
+        ("{W_DIM1_SIZE_val}", str(form_def.coefficients.shape[0])),
+        ("{W_DIM2_SIZE_val}", str(form_def.coefficients.shape[1] * cross_element_width)),
+        ("{DOF_DIM1_SIZE_val}", str(form_def.coord_dofs.shape[0])),
+        ("{DOF_DIM2_SIZE_val}", str(form_def.coord_dofs.shape[1] * cross_element_width)),
+        ("{test_runner_fun_name}", test_name),
+        ("{tabulate_tensor_fun_name}", function_name),
+        ("{tabulate_tensor_fun_code}", form_code),
+        ("{scalar_type}", scalar_type)
+    ]
+
+    wrapped_code = utils.replace_strings(TEST_RUNNER_CODE, code_strs)
     signature = TEST_RUNNER_SIGNATURE.replace("{test_runner_fun_name}", test_name)
 
     return wrapped_code, signature
