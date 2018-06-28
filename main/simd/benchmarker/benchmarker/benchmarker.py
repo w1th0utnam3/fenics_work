@@ -186,7 +186,6 @@ def run_benchmark(test_case: TestCase, test_fun_names: Dict, code_c: str, code_h
                 n_runs = test_case.n_repeats
                 # The actual test callable
                 test_callable = lambda: fun(n_elem, w_ptr, coords_dof_ptr)
-                test_callable = lambda: None
 
                 # Run the timing
                 avg, min, max = utils.timing(n_runs, test_callable, verbose=True)
