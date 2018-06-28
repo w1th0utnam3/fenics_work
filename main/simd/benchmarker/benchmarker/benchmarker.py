@@ -188,7 +188,7 @@ def run_benchmark(test_case: TestCase, test_fun_names: Dict, code_c: str, code_h
                 test_callable = lambda: fun(n_elem, w_ptr, coords_dof_ptr)
 
                 # Run the timing
-                avg, min, max = utils.timing(n_runs, test_callable, verbose=True)
+                avg, min, max = utils.timing(n_runs, test_callable, verbose=True, name=fun_name)
 
                 # Store result
                 raw_results[form_name][(i, j)] = avg, min, max

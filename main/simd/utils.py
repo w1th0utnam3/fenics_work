@@ -27,15 +27,18 @@ def scipy2numpy(scipy_obj):
     return np_mat
 
 
-def timing(n_runs: int, func, warm_up: bool = True, verbose: bool = True) -> Tuple[float, float, float]:
+def timing(n_runs: int, func, warm_up: bool = True, verbose: bool = True, name: str = None) -> Tuple[float, float, float]:
     """Measures avg, min and max execution time of 'func' over 'n_runs' executions"""
+
+    if name is None:
+        name = str(func)
 
     lower = float('inf')
     upper = -float('inf')
     avg = 0
 
     if verbose:
-        print(f"Timing (runs:{n_runs}): '{str(func)}' - ", end="", flush=True)
+        print(f"Timing (runs:{n_runs}): '{name}' - ", end="", flush=True)
 
     # Call once without measurement "to get warm"
     if warm_up:
