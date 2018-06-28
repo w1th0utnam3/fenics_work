@@ -57,4 +57,7 @@ RUN git clone https://github.com/firedrakeproject/tsfc.git && \
 RUN pip3 install --no-cache-dir git+https://github.com/coneoproject/COFFEE.git
 RUN pip3 install --no-cache-dir git+https://github.com/FInAT/FInAT.git
 
+# Additional packages for development
+RUN pip3 install dataclasses
+
 WORKDIR /local/fenics_work/main
