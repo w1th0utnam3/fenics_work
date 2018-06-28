@@ -65,6 +65,18 @@ def gen_test_case() -> TestCase:
         ffc_args=ffc_default
     )
 
+    four_elements_1 = TestRunArgs(
+        name="4x ce, scalar sp",
+        cross_element_width=4,
+        ffc_args={"optimize": True, "enable_cross_element_array_conv": True}
+    )
+
+    four_elements_2 = TestRunArgs(
+        name="4x ce, ssp, fused",
+        cross_element_width=4,
+        ffc_args={"optimize": True, "enable_cross_element_array_conv": True, "enable_cross_element_fuse": True}
+    )
+
     # Combine all options: benchmark will be cartesian product of compiler_args, run_args and forms
     test_case = TestCase(
         compiler_args=[
@@ -74,7 +86,9 @@ def gen_test_case() -> TestCase:
         run_args=[
             one_element,
             one_element_padded,
-            four_elements
+            four_elements,
+            four_elements_1,
+            four_elements_2
         ],
         forms=forms.get_all_forms(),
         reference_case=(0, 0),
