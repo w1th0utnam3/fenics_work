@@ -1,4 +1,6 @@
 from collections import namedtuple
+from typing import Dict, Tuple
+
 
 FormTestData = namedtuple("FormTestData", ["form_name",
                                            "code_gen",
@@ -13,6 +15,12 @@ TestRunArgs = namedtuple("TestRunArgs", ["name",
                                          "ffc_args"])
 
 
+FormTestResult = namedtuple("FormTestResult", ["avg",
+                                               "min",
+                                               "max",
+                                               "speedup"])
+
+
 TestCase = namedtuple("TestCase", ["compiler_args",
                                    "run_args",
                                    "forms",
@@ -20,7 +28,4 @@ TestCase = namedtuple("TestCase", ["compiler_args",
                                    "n_repeats"])
 
 
-FormTestResult = namedtuple("FormTestResult", ["avg",
-                                               "min",
-                                               "max",
-                                               "speedup"])
+BenchmarkReport = Dict[str, Dict[Tuple[int, int], FormTestResult]]
