@@ -1,31 +1,39 @@
-from collections import namedtuple
-from typing import Dict, Tuple
+import numpy as np
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, List, Tuple
+
+@dataclass
+class FormTestData():
+    form_name: str
+    code_gen: Callable
+    element_tensor_size: int
+    coefficients: np.array
+    coord_dofs: np.array
+    n_elems: int
 
 
-FormTestData = namedtuple("FormTestData", ["form_name",
-                                           "code_gen",
-                                           "element_tensor_size",
-                                           "coefficients",
-                                           "coord_dofs",
-                                           "n_elems"])
+@dataclass
+class TestRunArgs():
+    name: str
+    cross_element_width: int
+    ffc_args: Dict[str, Any]
 
 
-TestRunArgs = namedtuple("TestRunArgs", ["name",
-                                         "cross_element_width",
-                                         "ffc_args"])
+@dataclass
+class FormTestResult():
+    avg: float
+    min: float
+    max: float
+    speedup: float
 
 
-FormTestResult = namedtuple("FormTestResult", ["avg",
-                                               "min",
-                                               "max",
-                                               "speedup"])
-
-
-TestCase = namedtuple("TestCase", ["compiler_args",
-                                   "run_args",
-                                   "forms",
-                                   "reference_case",
-                                   "n_repeats"])
+@dataclass
+class TestCase():
+    compiler_args: List[Dict[str, Any]]
+    run_args: List[TestRunArgs]
+    forms: List[FormTestData]
+    reference_case: Tuple[int, int]
+    n_repeats: int
 
 
 BenchmarkReport = Dict[str, Dict[Tuple[int, int], FormTestResult]]
