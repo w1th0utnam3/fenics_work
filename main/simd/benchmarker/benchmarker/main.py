@@ -9,8 +9,20 @@ from benchmarker.types import TestCase, TestRunArgs
 def gen_test_case() -> TestCase:
     """Generates an example test case."""
 
+    # Macros for ICC
+    """
+    [("_Float32", "float"),
+    ("_Float64","double"),
+    ("_Float128", "'long double'"),
+    ("_Float32x", "double"),
+    ("_Float64x","'long double'")]
+    """
+
     # Default GCC parameters
     gcc_default = {
+        "-D__PURE_INTEL_C99_HEADERS__": False,
+        "-D_GNU_SOURCE": False,
+        "-D_Float32=float -D_Float64='long double' -D_Float32x=double -D_Float64x='long double'": False,
         "-O2": True,
         "-funroll-loops": False,
         "-ftree-vectorize": False,
@@ -20,6 +32,9 @@ def gen_test_case() -> TestCase:
 
     # GCC parameters with auto vectorization
     gcc_auto_vectorize = {
+        "-D__PURE_INTEL_C99_HEADERS__": False,
+        "-D_GNU_SOURCE": False,
+        "-D_Float32=float -D_Float64='long double' -D_Float32x=double -D_Float64x='long double'": False,
         "-O2": True,
         "-funroll-loops": True,
         "-ftree-vectorize": True,
