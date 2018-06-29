@@ -2,7 +2,7 @@ import ufl
 import ffc.compiler
 
 from copy import copy
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 from benchmarker.types import TestCase, FormTestData, TestRunArgs
 from benchmarker.c_code import wrap_tabulate_tensor_code, join_test_wrappers
@@ -38,24 +38,18 @@ def compile_form(form: ufl.Form, prefix: str, extra_ffc_args=None) -> Tuple[str,
     return function_name, tabulate_tensor_code
 
 
-def generate_benchmark_code(test_case: TestCase) -> Tuple[Dict, str, str]:
+def generate_benchmark_code(test_case: TestCase) -> Tuple[Dict[str, List[Tuple[str, int]]], List[Tuple[str, str]]]:
     """
     Generates code for a TestCase.
 
     :param test_case: The TestCase to process.
     :return: A tuple consisting of:
-        - a dict containing the C function names of the individual tabulate_tensor wrapper functions
-        - a str containing the C source code of all tabulate_tensor functions and their wrappers
-        - a str containing the C header for all test wrappers
+        - a dict mapping form name -> a list of all test wrapper function names and the index of its implementation
+            in the second output value
+        - a list containing tuples of all generated C sources and headers
     """
 
-    # Dict that will be used for the function names of all test wrappers
-    test_fun_names = {form_def.form_name: [] for form_def in test_case.forms}
-
-    # List of individual function implementations
-    test_codes = []
-    # List of individial function headers
-    test_signatures = []
+    test_functions = {form_def.form_name: [] for form_def in test_case.forms}
 
     # Loop over all run arguments sets (e.g. FFC arguments)
     for j, run_arg_set in enumerate(test_case.run_args):  # type: int, TestRunArgs
@@ -78,16 +72,42 @@ def generate_benchmark_code(test_case: TestCase) -> Tuple[Dict, str, str]:
             gcc_ext_enabled = run_arg_set.ffc_args.get("enable_cross_element_gcc_ext", False)
 
             # Wrap tabulate_tensor code in test runner function
-            test_name = "_test_runner_" + raw_function_name
-            code, signature = wrap_tabulate_tensor_code(test_name, raw_function_name, raw_code, form_def,
+            wrapper_function_name = "_test_runner_" + raw_function_name
+            code, signature = wrap_tabulate_tensor_code(wrapper_function_name, raw_function_name, raw_code, form_def,
                                                         cross_element_width, gcc_ext_enabled)
 
             # Store generated content
-            test_fun_names[form_def.form_name].append(test_name)
-            test_codes.append(code)
-            test_signatures.append(signature)
+            test_functions[form_def.form_name].append((wrapper_function_name, code, signature))
+
+    # Generate separate test files for every form and ffc parameter combination
+    def separate_file_per_test():
+        test_fun_names = {form_def.form_name: [] for form_def in test_case.forms}
+        test_funs = []
+
+        for form_name, test_function_list in test_functions.items():
+            for wrapper_function_name, code, signature in test_function_list:
+                code_index = len(test_funs)
+                test_fun_names[form_name].append((wrapper_function_name, code_index))
+
+                code_c, code_h = join_test_wrappers([code], [signature])
+                test_funs.append((code_c, code_h))
+
+        return test_fun_names, test_funs
 
     # Concatenate all test codes
-    code_c, code_h = join_test_wrappers(test_codes, test_signatures)
+    def join_all_test():
+        test_fun_names = {form_def.form_name: [] for form_def in test_case.forms}
+        codes = []
+        signatures = []
 
-    return test_fun_names, code_c, code_h
+        for form_name, test_function_list in test_functions.items():
+            for wrapper_function_name, code, signature in test_function_list:
+                test_fun_names[form_name].append((wrapper_function_name, 0))
+                codes.append(code)
+                signatures.append(signature)
+
+        code_c, code_h = join_test_wrappers(codes, signatures)
+
+        return test_fun_names, [(code_c, code_h)]
+
+    return separate_file_per_test()

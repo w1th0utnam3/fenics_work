@@ -39,6 +39,11 @@ class FormTestResult():
     min: float
     max: float
     speedup: float
+    result_val: float
+    result_ok: bool
 
 
-BenchmarkReport = Dict[str, Dict[Tuple[int, int], FormTestResult]]
+@dataclass
+class BenchmarkReport():
+    total_runtime: float
+    results: Dict[str, Dict[Tuple[int, int], FormTestResult]]

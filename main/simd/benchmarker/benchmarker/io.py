@@ -1,7 +1,7 @@
 import os
 import json
 import numpy as np
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 from benchmarker.types import TestCase, BenchmarkReport, TestRunArgs, FormTestResult
 
@@ -11,6 +11,7 @@ def print_report(test_case: TestCase, report: BenchmarkReport):
     print("")
     print("Benchmark report")
     print("-" * 20)
+    print("Total runtime: {:.2f}s".format(report.total_runtime))
 
     # Get the length of the longest run args name
     longest_name = 0
@@ -18,7 +19,7 @@ def print_report(test_case: TestCase, report: BenchmarkReport):
         longest_name = np.maximum(longest_name, len(run_arg_set.name))
 
     # Loop over results of all forms
-    for form_idx, (form_name, form_results) in enumerate(report.items()):
+    for form_idx, (form_name, form_results) in enumerate(report.results.items()):
         print("{}".format(form_name))
         print("Results for form '{}', test run with n={} elements".format(form_name, test_case.forms[form_idx].n_elems))
 
@@ -30,12 +31,14 @@ def print_report(test_case: TestCase, report: BenchmarkReport):
                 result = form_results[(i, j)]  # type: FormTestResult
 
                 print(
-                    "\t\t{:<{name_length}} | avg: {:>8.2f}ms | min: {:>8.2f}ms | max: {:>8.2f}ms | speedup: {:>5.2f}x".format(
+                    "\t\t{:<{name_length}} | avg: {:>8.2f}ms | min: {:>8.2f}ms | max: {:>8.2f}ms | speedup: {:>5.2f}x | result: {:>20.14e} | result ok: {}".format(
                         run_arg_set.name,
                         result.avg * 1000,
                         result.min * 1000,
                         result.max * 1000,
                         result.speedup,
+                        result.result_val,
+                        result.result_ok,
                         name_length=longest_name + 1))
 
             print("")
@@ -44,7 +47,7 @@ def print_report(test_case: TestCase, report: BenchmarkReport):
         print("")
 
 
-def save_generated_test_case_data(name: str, test_fun_names: Dict, code_c: str, code_h: str, path: str = ""):
+def save_generated_data(name: str, test_fun_names: Dict, codes: List[Tuple[str, str]], path: str = ""):
     """
     Stores the specified generated test case data in a set of files.
 
@@ -60,11 +63,13 @@ def save_generated_test_case_data(name: str, test_fun_names: Dict, code_c: str, 
 
     test_fun_json = json.dumps(test_fun_names, indent=4)
     store_string(output_basename + "_funs.json", test_fun_json)
-    store_string(output_basename + "_code.c", code_c)
-    store_string(output_basename + "_code.h", code_h)
+
+    for i, (code_c, code_h) in enumerate(codes):
+        store_string(output_basename + "_code_{}.c".format(i), code_c)
+        store_string(output_basename + "_code_{}.h".format(i), code_h)
 
 
-def load_generated_test_case_data(name: str, path: str = "") ->  Tuple[Dict, str, str]:
+def load_generated_data(name: str, path: str = "") ->  Tuple[Dict, List[Tuple[str, str]]]:
     """
     Loads a set of generated test case data from files.
 
@@ -80,9 +85,22 @@ def load_generated_test_case_data(name: str, path: str = "") ->  Tuple[Dict, str
             content = f.read()
             return content
 
+    n_code_files = 0
     test_fun_json = load_string(input_basename + "_funs.json")
-    code_c = load_string(input_basename + "_code.c")
-    code_h = load_string(input_basename + "_code.h")
-
     test_fun_names = json.loads(test_fun_json)
-    return test_fun_names, code_c, code_h
+
+    # Convert lists from json file to tuples
+    for form_name, test_function_list in test_fun_names.items():
+        for i in range(len(test_function_list)):
+            fun_name, code_idx = test_function_list[i][0], test_function_list[i][1]
+            test_function_list[i] = (fun_name, code_idx)
+
+            n_code_files = max(n_code_files, code_idx)
+
+    codes = []
+    for i in range(n_code_files+1):
+        code_c = load_string(input_basename + "_code_{}.c".format(i))
+        code_h = load_string(input_basename + "_code_{}.h".format(i))
+        codes.append((code_c, code_h))
+
+    return test_fun_names, codes

@@ -1,11 +1,10 @@
 import cffi
+import time
 import importlib
 import numpy as np
 from typing import Dict, List, Tuple
 
 from benchmarker.types import BenchmarkReport, TestCase, TestRunArgs, FormTestData, FormTestResult
-
-import simd.utils as utils
 
 
 def compile_cffi(module_name: str,
@@ -32,7 +31,52 @@ def import_cffi(module_name: str):
     return ffi, lib
 
 
-def run_benchmark(test_case: TestCase, test_fun_names: Dict, code_c: str, code_h: str) -> BenchmarkReport:
+def timing(n_runs: int, func, warm_up: bool = True, verbose: bool = True, name: str = None) -> Tuple[float, float, float, List]:
+    """Measures avg, min and max execution time of 'func' over 'n_runs' executions"""
+
+    if name is None:
+        name = str(func)
+
+    lower = float('inf')
+    upper = -float('inf')
+    avg = 0
+
+    results = []
+
+    if verbose:
+        print(f"Timing (runs:{n_runs}): '{name}' - ", end="", flush=True)
+
+    # Call once without measurement "to get warm"
+    if warm_up:
+        if verbose:
+            print("warm-up...", end="", flush=True)
+
+        results.append(func())
+
+        if verbose:
+            print("done. ", end="", flush=True)
+
+    for i in range(n_runs):
+        start = time.time()
+        results.append(func())
+        end = time.time()
+
+        diff = end - start
+
+        lower = min(lower, diff)
+        upper = max(upper, diff)
+        avg += (diff - avg)/(i+1)
+
+        if verbose:
+            print("#", end="", flush=True)
+
+    if verbose:
+        print(" done.")
+
+    return avg, lower, upper, results
+
+
+def run_benchmark(test_case: TestCase, test_fun_names: Dict, codes: List[Tuple[str,str]], verbose: bool = True) -> BenchmarkReport:
     """
     Runs a benchmark TestCase and generates a corresponding BenchmarkReport.
 
@@ -46,27 +90,40 @@ def run_benchmark(test_case: TestCase, test_fun_names: Dict, code_c: str, code_h
 
     raw_results = {form_def.form_name: dict() for form_def in test_case.forms}
 
+    module_cache = dict()
+    module_counter = 0
+    def compile_module(index: int):
+        nonlocal module_counter
+
+        if index in module_cache.keys():
+            return module_cache[index]
+        else:
+            compile_cffi("_benchmark_{}".format(module_counter), codes[index][0], codes[index][1], compiler_args=active_compile_args, verbose=verbose)
+            ffi, lib = import_cffi("_benchmark_{}".format(module_counter))
+
+            module_cache[index] = ffi, lib
+            module_counter += 1
+
+            return ffi, lib
+
     # Step 1: Run benchmark
     # ---
 
+    t_start = time.time()
+
+    total_tests = len(test_case.compiler_args)*len(test_case.run_args)*len(test_case.forms)
+    test_counter = 1
     # Outermost loop over all compiler argument sets
     for i, compiler_arg_set in enumerate(test_case.compiler_args):
         active_compile_args = [arg for arg, use in compiler_arg_set.items() if use]
 
-        # Step 1a: Code compilation
-        # ---
-
-        # Build the test module
-        compile_cffi("_benchmark_{}".format(i), code_c, code_h, compiler_args=active_compile_args, verbose=True)
-        ffi, lib = import_cffi("_benchmark_{}".format(i))
-
-        # Step 1b: Run benchmark
-        # ---
-
         # Loop over the forms
         for form_idx, (form_name, form_fun_names) in enumerate(test_fun_names.items()):
             # Loop over the function names of each test case
-            for j, fun_name in enumerate(form_fun_names):
+            for j, (fun_name, fun_index) in enumerate(form_fun_names):
+                if verbose:
+                    print("({}/{}) Running test function '{}'".format(test_counter, total_tests, fun_name))
+
                 run_arg_set = test_case.run_args[j]  # type: TestRunArgs
                 form_data = test_case.forms[form_idx]  # type: FormTestData
 
@@ -82,6 +139,9 @@ def run_benchmark(test_case: TestCase, test_fun_names: Dict, code_c: str, code_h
                     w = np.tile(np.expand_dims(w, 2), cross_element_width)
                     coords_dof = np.tile(np.expand_dims(coords_dof, 2), cross_element_width)
 
+                # Get or compile the test module
+                ffi, lib = compile_module(fun_index)
+
                 # Get pointers to numpy arrays
                 w_ptr = ffi.cast("double*", w.ctypes.data)
                 coords_dof_ptr = ffi.cast("double*", coords_dof.ctypes.data)
@@ -95,10 +155,19 @@ def run_benchmark(test_case: TestCase, test_fun_names: Dict, code_c: str, code_h
                 test_callable = lambda: fun(n_elem, w_ptr, coords_dof_ptr)
 
                 # Run the timing
-                avg, min, max = utils.timing(n_runs, test_callable, verbose=True, name=fun_name)
+                avg, min, max, return_vals = timing(n_runs, test_callable, verbose=verbose, name=fun_name)
 
                 # Store result
-                raw_results[form_name][(i, j)] = avg, min, max
+                raw_results[form_name][(i, j)] = avg, min, max, return_vals[0]
+
+                test_counter += 1
+                if verbose:
+                    print("")
+
+        # Clear compile cache
+        module_cache.clear()
+
+    t_end = time.time()
 
     # Step 2: Generate report and calculate speedup)
     # ---
@@ -110,13 +179,20 @@ def run_benchmark(test_case: TestCase, test_fun_names: Dict, code_c: str, code_h
     for form_idx, (form_name, form_results) in enumerate(raw_results.items()):
         # Obtain the reference time for the form
         reference_time = form_results[(test_case.reference_case)][0]
+        reference_result = form_results[(test_case.reference_case)][3]
 
         for i, compiler_arg_set in enumerate(test_case.compiler_args):
             for j, run_arg_set in enumerate(test_case.run_args):
                 raw_result = form_results[(i, j)]
                 speedup = reference_time / raw_result[0]
+                if (i,j) == test_case.reference_case:
+                    result_ok = "Reference"
+                else:
+                    result_ok = np.allclose(reference_result, raw_result[3], rtol=1e-7, atol=1e-10)
 
                 # Store the result values including speedup
-                results[form_name][(i, j)] = FormTestResult(*raw_result, speedup)
+                results[form_name][(i, j)] = FormTestResult(avg=raw_result[0], min=raw_result[1], max=raw_result[2],
+                                                            speedup=speedup, result_val=raw_result[3], result_ok=result_ok)
 
-    return results
+    runtime = t_end - t_start
+    return BenchmarkReport(runtime, results)

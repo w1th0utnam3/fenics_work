@@ -91,10 +91,8 @@ def gen_test_case() -> TestCase:
         ],
         run_args=[
             one_element,
-            one_element_padded,
             four_elements,
-            four_elements_1,
-            four_elements_2
+            four_elements_0
         ],
         forms=forms.get_all_forms(),
         reference_case=(0, 0),
@@ -110,17 +108,17 @@ def example_generate():
     import benchmarker.generate as generate
 
     test_case = gen_test_case()
-    test_fun_names, code_c, code_h = generate.generate_benchmark_code(test_case)
-    io.save_generated_test_case_data("example_benchmark_data", test_fun_names, code_c, code_h)
+    test_fun_names, codes = generate.generate_benchmark_code(test_case)
+    io.save_generated_data("example_benchmark_data", test_fun_names, codes)
 
 
 def example_run():
     """Loads example benchmark data and runs it."""
 
     test_case = gen_test_case()
-    test_fun_names, code_c, code_h = io.load_generated_test_case_data("example_benchmark_data")
+    test_fun_names, codes = io.load_generated_data("example_benchmark_data")
 
-    report = execute.run_benchmark(test_case, test_fun_names, code_c, code_h)
+    report = execute.run_benchmark(test_case, test_fun_names, codes)
     io.print_report(test_case, report)
 
 
@@ -131,8 +129,8 @@ def example_simple():
 
     test_case = gen_test_case()
 
-    test_fun_names, code_c, code_h = generate.generate_benchmark_code(test_case)
-    report = execute.run_benchmark(test_case, test_fun_names, code_c, code_h)
+    test_fun_names, codes = generate.generate_benchmark_code(test_case)
+    report = execute.run_benchmark(test_case, test_fun_names, codes)
     io.print_report(test_case, report)
 
 

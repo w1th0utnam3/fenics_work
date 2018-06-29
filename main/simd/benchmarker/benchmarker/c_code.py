@@ -49,13 +49,16 @@ double {test_runner_fun_name}(
     alignas(32) double A[A_SIZE];
 
     double result = 0.0;
+    double acc;
     for(int i = 0; i < n; ++i) {
         {tabulate_tensor_fun_name}(({scalar_type}*)&A[0], (const {scalar_type}* const*)&w_ptrs[0], (const {scalar_type}*)&coords[0][0], 0);
-
+        
         // Reduce element tensor to use output
+        acc = 0;
         for(int j = 0; j < A_SIZE; ++j) {
-            result += fabs(A[j]);
+            acc += fabs(A[j]);
         }
+        result += acc;
 
         // Increment coordinates to have varying inputs
         for(int j = 0; j < DOF_DIM1_SIZE; ++j)
