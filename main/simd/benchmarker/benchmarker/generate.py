@@ -1,11 +1,19 @@
 import ufl
 import ffc.compiler
 
+import sys
+import argparse
 from copy import copy
 from typing import Dict, List, Tuple
 
 from benchmarker.types import TestCase, FormTestData, TestRunArgs
 from benchmarker.c_code import wrap_tabulate_tensor_code, join_test_wrappers
+
+
+def parse_args(args):
+    parser = argparse.ArgumentParser(prog="{} generate".format(sys.argv[0]),
+                                     description="Generates benchmark data. Requires a FEniCS installtion.")
+    return parser.parse_args(args)
 
 
 def compile_form(form: ufl.Form, prefix: str, extra_ffc_args=None) -> Tuple[str, str]:

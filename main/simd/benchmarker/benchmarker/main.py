@@ -136,15 +136,22 @@ def example_simple():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--generate", help="Generates benchmark data. Requires a FEniCS installtion.", action="store_true")
-    parser.add_argument("--run", help="Runs previously generated benchmark data. Does not require FEniCS.", action="store_true")
-    args = parser.parse_args()
+    subparsers = parser.add_subparsers(dest='command')
+    subparsers.add_parser("generate", add_help=False)
+    subparsers.add_parser("run", add_help=False)
 
-    if args.generate or args.run:
-        if args.generate:
-            example_generate()
-        if args.run:
-            example_run()
+    args, unknown_args = parser.parse_known_args()
+
+    if args.command == "generate":
+        from benchmarker.generate import parse_args
+        parse_args(unknown_args)
+
+        example_generate()
+    elif args.command == "run":
+        from benchmarker.execute import parse_args
+        parse_args(unknown_args)
+
+        example_run()
     else:
         example_simple()
 

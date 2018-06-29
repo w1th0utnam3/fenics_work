@@ -1,10 +1,18 @@
+import sys
 import cffi
 import time
+import argparse
 import importlib
 import numpy as np
 from typing import Dict, List, Tuple
 
 from benchmarker.types import BenchmarkReport, TestCase, TestRunArgs, FormTestData, FormTestResult
+
+
+def parse_args(args):
+    parser = argparse.ArgumentParser(prog="{} run".format(sys.argv[0]),
+                                     description="Runs previously generated benchmark data. Does not require FEniCS.")
+    return parser.parse_args(args)
 
 
 def compile_cffi(module_name: str,
