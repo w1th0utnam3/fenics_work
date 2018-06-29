@@ -2,7 +2,7 @@ from ufl import *
 from typing import Optional
 
 
-def laplace_form(element, coeff_element: Optional[FiniteElement] = None) -> Form:
+def laplace_form(element: FiniteElement, coeff_element: Optional[FiniteElement] = None) -> Form:
     v = TestFunction(element)
     u = TrialFunction(element)
 
@@ -26,23 +26,22 @@ def laplace_p2tet():
     return laplace_form(FiniteElement("Lagrange", tetrahedron, 2))
 
 
-def biharmonic_p2tet():
-    # Elements
-    element = FiniteElement("Lagrange", tetrahedron, 2)
+def biharmonic_form(element: FiniteElement):
+    cell = element.cell()
 
     # Trial and test functions
     u = TrialFunction(element)
     v = TestFunction(element)
 
     # Facet normal, mesh size and right-hand side
-    n = FacetNormal(tetrahedron)
-    h = 2.0 * Circumradius(tetrahedron)
+    n = FacetNormal(cell)
+    h = 2.0 * Circumradius(cell)
 
     # Compute average of mesh size
     h_avg = (h('+') + h('-')) / 2.0
 
     # Parameters
-    alpha = Constant(tetrahedron)
+    alpha = Constant(cell)
 
     # Bilinear form
     return inner(div(grad(u)), div(grad(v))) * dx \
@@ -51,9 +50,13 @@ def biharmonic_p2tet():
            + alpha / h_avg * inner(jump(grad(u), n), jump(grad(v), n)) * dS
 
 
-def hyperelasticity_p1tet():
-    # Coefficient spaces
-    element = VectorElement("Lagrange", tetrahedron, 1)
+def biharmonic_p2tet():
+    element = FiniteElement("Lagrange", tetrahedron, 2)
+    return biharmonic_form(element)
+
+
+def hyperelasticity_form(element: VectorElement):
+    cell = element.cell()
 
     # Coefficients
     v = TestFunction(element)  # Test function
@@ -72,8 +75,8 @@ def hyperelasticity_p1tet():
     E = variable(E)
 
     # Material constants
-    mu = Constant(tetrahedron)  # Lame's constants
-    lmbda = Constant(tetrahedron)
+    mu = Constant(cell)  # Lame's constants
+    lmbda = Constant(cell)
 
     # Strain energy function (material model)
     psi = lmbda / 2 * (tr(E) ** 2) + mu * tr(E * E)
@@ -84,3 +87,33 @@ def hyperelasticity_p1tet():
     # The variational problem corresponding to hyperelasticity
     L = inner(P, grad(v)) * dx - inner(B, v) * dx - inner(T, v) * ds
     return derivative(L, u, du)
+
+
+def hyperelasticity_p1tet():
+    element = VectorElement("Lagrange", tetrahedron, 1)
+    return hyperelasticity_form(element)
+
+
+def stokes_form(vector: VectorElement, scalar: FiniteElement):
+    system = vector * scalar
+
+    (u, p) = TrialFunctions(system)
+    (v, q) = TestFunctions(system)
+
+    f = Coefficient(vector)
+    h = Coefficient(scalar)
+
+    beta = 0.2
+    delta = beta * h * h
+
+    a = (inner(grad(u), grad(v)) - div(v) * p + div(u) * q + delta * dot(grad(p), grad(q))) * dx
+    L = dot(f, v + delta * grad(q)) * dx
+
+    return a
+
+
+def stokes_p2p1tet():
+    cell = tetrahedron
+    vector = VectorElement("Lagrange", cell, 2)
+    scalar = FiniteElement("Lagrange", cell, 1)
+    return stokes_form(vector, scalar)

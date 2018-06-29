@@ -93,11 +93,25 @@ def hyperelasticity_p1tet() -> FormTestData:
     )
 
 
+def stokes_p2p1tet() -> FormTestData:
+    form_name = "stokes_p2p1tet"
+
+    return FormTestData(
+        form_name=form_name,
+        form_gen=lambda: get_form(form_name),
+        element_tensor_size=1156,
+        coefficients=W4,
+        coord_dofs=DOF_4x3,
+        n_elems=int(np.floor(110 ** 3 / 4) * 4)
+    )
+
+
 def get_all_forms() -> List[FormTestData]:
     return [
         laplace_p1tri(),
         laplace_p2tet(),
         laplace_p2tet_coefficient_p1tet(),
         biharmonic_p2tet(),
-        hyperelasticity_p1tet()
+        hyperelasticity_p1tet(),
+        stokes_p2p1tet()
     ]
