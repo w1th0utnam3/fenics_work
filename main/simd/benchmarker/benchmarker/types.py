@@ -1,6 +1,6 @@
 import numpy as np
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 
 # Types for test case definition
@@ -29,6 +29,7 @@ class TestCase():
     forms: List[FormTestData]
     reference_case: Tuple[int, int]
     n_repeats: int
+    compiler_defines: Optional[List[Tuple[str, str]]] = None
 
 
 # Types for benchmark results

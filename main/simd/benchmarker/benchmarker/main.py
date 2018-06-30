@@ -9,37 +9,23 @@ from benchmarker.types import TestCase, TestRunArgs
 def gen_test_case() -> TestCase:
     """Generates an example test case."""
 
-    # Macros for ICC
-    """
-    [("_Float32", "float"),
-    ("_Float64","double"),
-    ("_Float128", "'long double'"),
-    ("_Float32x", "double"),
-    ("_Float64x","'long double'")]
-    """
-
+    # Warning: every parameter needs its own entry due to os.exec behavior
     # Default GCC parameters
     gcc_default = {
-        "-D__PURE_INTEL_C99_HEADERS__": False,
-        "-D_GNU_SOURCE": False,
-        "-D_Float32=float -D_Float64='long double' -D_Float32x=double -D_Float64x='long double'": False,
         "-O2": True,
         "-funroll-loops": False,
         "-ftree-vectorize": False,
-        "-march=native": True,
-        "-mtune=native": False,
+        "-march=skylake": True,
+        "-mtune=skylake": False,
     }
 
     # GCC parameters with auto vectorization
     gcc_auto_vectorize = {
-        "-D__PURE_INTEL_C99_HEADERS__": False,
-        "-D_GNU_SOURCE": False,
-        "-D_Float32=float -D_Float64='long double' -D_Float32x=double -D_Float64x='long double'": False,
         "-O2": True,
         "-funroll-loops": True,
         "-ftree-vectorize": True,
-        "-march=native": True,
-        "-mtune=native": True,
+        "-march=skylake": True,
+        "-mtune=skylake": True,
     }
 
     # Default FFC parameters
@@ -91,6 +77,7 @@ def gen_test_case() -> TestCase:
         ],
         run_args=[
             one_element,
+            one_element_padded,
             four_elements,
             four_elements_0
         ],
@@ -98,6 +85,16 @@ def gen_test_case() -> TestCase:
         reference_case=(0, 0),
         n_repeats=3
     )
+
+    # Optional defines when using ICC
+    test_case.compiler_defines = [
+        ("__PURE_INTEL_C99_HEADERS__", ""),
+        ("_Float32", "float"),
+        ("_Float64", "double"),
+        ("_Float128", "long double"),
+        ("_Float32x", "double"),
+        ("_Float64x", "long double")
+    ]
 
     return test_case
 
@@ -112,14 +109,22 @@ def example_generate():
     io.save_generated_data("example_benchmark_data", test_fun_names, codes)
 
 
-def example_run():
+def example_run(report_filename: str):
     """Loads example benchmark data and runs it."""
 
     test_case = gen_test_case()
     test_fun_names, codes = io.load_generated_data("example_benchmark_data")
 
     report = execute.run_benchmark(test_case, test_fun_names, codes)
+
+    io.save_report(report_filename, report)
     io.print_report(test_case, report)
+
+
+def example_plot(report_filename: str):
+    test_case = gen_test_case()
+    report = io.load_report(report_filename)
+    io.plot_report(test_case, report)
 
 
 def example_simple():
@@ -140,18 +145,26 @@ def main():
     subparsers.add_parser("generate", add_help=False)
     subparsers.add_parser("run", add_help=False)
 
+    plot_parser = subparsers.add_parser("plot")
+    plot_parser.add_argument("report_filename", help="Input filename of the benchmark report that should be plotted")
+
     args, unknown_args = parser.parse_known_args()
 
     if args.command == "generate":
         from benchmarker.generate import parse_args
-        parse_args(unknown_args)
+        args = parse_args(unknown_args)
 
         example_generate()
+
     elif args.command == "run":
         from benchmarker.execute import parse_args
-        parse_args(unknown_args)
+        args = parse_args(unknown_args)
 
-        example_run()
+        example_run(args.report_filename)
+
+    elif args.command == "plot":
+        example_plot(args.report_filename)
+
     else:
         example_simple()
 

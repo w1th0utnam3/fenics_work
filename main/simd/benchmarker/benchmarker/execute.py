@@ -12,13 +12,15 @@ from benchmarker.types import BenchmarkReport, TestCase, TestRunArgs, FormTestDa
 def parse_args(args):
     parser = argparse.ArgumentParser(prog="{} run".format(sys.argv[0]),
                                      description="Runs previously generated benchmark data. Does not require FEniCS.")
+    parser.add_argument("report_filename", help="Output filename for the benchmark report that will be generated")
+
     return parser.parse_args(args)
 
 
 def compile_cffi(module_name: str,
                  code_c: str,
                  code_h: str,
-                 define_macros: List[Tuple[str,str]] = None,
+                 define_macros: List[Tuple[str, str]] = None,
                  compiler_args: List[str] = None,
                  verbose: bool = False) -> str:
     """Compiles a module from the specified source code using CFFI."""
@@ -39,7 +41,8 @@ def import_cffi(module_name: str):
     return ffi, lib
 
 
-def timing(n_runs: int, func, warm_up: bool = True, verbose: bool = True, name: str = None) -> Tuple[float, float, float, List]:
+def timing(n_runs: int, func, warm_up: bool = True, verbose: bool = True, name: str = None) -> Tuple[
+    float, float, float, List]:
     """Measures avg, min and max execution time of 'func' over 'n_runs' executions"""
 
     if name is None:
@@ -73,7 +76,7 @@ def timing(n_runs: int, func, warm_up: bool = True, verbose: bool = True, name: 
 
         lower = min(lower, diff)
         upper = max(upper, diff)
-        avg += (diff - avg)/(i+1)
+        avg += (diff - avg) / (i + 1)
 
         if verbose:
             print("#", end="", flush=True)
@@ -84,7 +87,8 @@ def timing(n_runs: int, func, warm_up: bool = True, verbose: bool = True, name: 
     return avg, lower, upper, results
 
 
-def run_benchmark(test_case: TestCase, test_fun_names: Dict, codes: List[Tuple[str,str]], verbose: bool = True) -> BenchmarkReport:
+def run_benchmark(test_case: TestCase, test_fun_names: Dict, codes: List[Tuple[str, str]],
+                  verbose: bool = True) -> BenchmarkReport:
     """
     Runs a benchmark TestCase and generates a corresponding BenchmarkReport.
 
@@ -100,13 +104,16 @@ def run_benchmark(test_case: TestCase, test_fun_names: Dict, codes: List[Tuple[s
 
     module_cache = dict()
     module_counter = 0
-    def compile_module(index: int):
+
+    def compile_module(index: int, args, macros=None):
         nonlocal module_counter
 
         if index in module_cache.keys():
             return module_cache[index]
         else:
-            compile_cffi("_benchmark_{}".format(module_counter), codes[index][0], codes[index][1], compiler_args=active_compile_args, verbose=verbose)
+            compile_cffi("_benchmark_{}".format(module_counter), codes[index][0], codes[index][1],
+                         define_macros=macros,
+                         compiler_args=args, verbose=verbose)
             ffi, lib = import_cffi("_benchmark_{}".format(module_counter))
 
             module_cache[index] = ffi, lib
@@ -119,7 +126,7 @@ def run_benchmark(test_case: TestCase, test_fun_names: Dict, codes: List[Tuple[s
 
     t_start = time.time()
 
-    total_tests = len(test_case.compiler_args)*len(test_case.run_args)*len(test_case.forms)
+    total_tests = len(test_case.compiler_args) * len(test_case.run_args) * len(test_case.forms)
     test_counter = 1
     # Outermost loop over all compiler argument sets
     for i, compiler_arg_set in enumerate(test_case.compiler_args):
@@ -148,7 +155,7 @@ def run_benchmark(test_case: TestCase, test_fun_names: Dict, codes: List[Tuple[s
                     coords_dof = np.tile(np.expand_dims(coords_dof, 2), cross_element_width)
 
                 # Get or compile the test module
-                ffi, lib = compile_module(fun_index)
+                ffi, lib = compile_module(fun_index, args=active_compile_args, macros=test_case.compiler_defines)
 
                 # Get pointers to numpy arrays
                 w_ptr = ffi.cast("double*", w.ctypes.data)
@@ -193,14 +200,15 @@ def run_benchmark(test_case: TestCase, test_fun_names: Dict, codes: List[Tuple[s
             for j, run_arg_set in enumerate(test_case.run_args):
                 raw_result = form_results[(i, j)]
                 speedup = reference_time / raw_result[0]
-                if (i,j) == test_case.reference_case:
+                if (i, j) == test_case.reference_case:
                     result_ok = "Reference"
                 else:
                     result_ok = np.allclose(reference_result, raw_result[3], rtol=1e-7, atol=1e-10)
 
                 # Store the result values including speedup
                 results[form_name][(i, j)] = FormTestResult(avg=raw_result[0], min=raw_result[1], max=raw_result[2],
-                                                            speedup=speedup, result_val=raw_result[3], result_ok=result_ok)
+                                                            speedup=speedup, result_val=raw_result[3],
+                                                            result_ok=result_ok)
 
     runtime = t_end - t_start
     return BenchmarkReport(runtime, results)
