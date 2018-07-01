@@ -1,11 +1,12 @@
+import inspect
 import numpy as np
-from typing import List
+from typing import List, Tuple
 
 from benchmarker.types import FormTestData
 
-W3 = np.linspace(1, 2, num=3, dtype=np.double)[np.newaxis,:]
-W4 = np.linspace(1, 2, num=4, dtype=np.double)[np.newaxis,:]
-W12 = np.linspace(1, 2, num=12, dtype=np.double)[np.newaxis,:]
+W3 = np.linspace(1, 2, num=3, dtype=np.double)[np.newaxis, :]
+W4 = np.linspace(1, 2, num=4, dtype=np.double)[np.newaxis, :]
+W12 = np.linspace(1, 2, num=12, dtype=np.double)[np.newaxis, :]
 W3x12 = np.repeat(W12, 3, axis=0)
 
 DOF_3x2 = np.asarray([
@@ -22,10 +23,11 @@ DOF_4x3 = np.asarray([
 ], dtype=np.double)
 
 
-def get_form(form_name: str):
-    """Lazy construction of the form with the specified name"""
-    import benchmarker.forms as forms
-    return getattr(forms, form_name)()
+def get_form_code(form_name: str) -> Tuple[str, str]:
+    import benchmarker.forms
+    form_env = inspect.getsource(benchmarker.forms)
+    form_expr = "{}()".format(form_name)
+    return form_expr, form_env
 
 
 def laplace_p2tet_coefficient_p1tet() -> FormTestData:
@@ -33,7 +35,7 @@ def laplace_p2tet_coefficient_p1tet() -> FormTestData:
 
     return FormTestData(
         form_name=form_name,
-        form_gen=lambda: get_form(form_name),
+        form_code=get_form_code(form_name),
         element_tensor_size=100,
         coefficients=W4,
         coord_dofs=DOF_4x3,
@@ -46,7 +48,7 @@ def laplace_p1tri() -> FormTestData:
 
     return FormTestData(
         form_name=form_name,
-        form_gen=lambda: get_form(form_name),
+        form_code=get_form_code(form_name),
         element_tensor_size=9,
         coefficients=W3,
         coord_dofs=DOF_3x2,
@@ -59,7 +61,7 @@ def laplace_p2tet() -> FormTestData:
 
     return FormTestData(
         form_name=form_name,
-        form_gen=lambda: get_form(form_name),
+        form_code=get_form_code(form_name),
         element_tensor_size=100,
         coefficients=W4,
         coord_dofs=DOF_4x3,
@@ -72,7 +74,7 @@ def biharmonic_p2tet() -> FormTestData:
 
     return FormTestData(
         form_name=form_name,
-        form_gen=lambda: get_form(form_name),
+        form_code=get_form_code(form_name),
         element_tensor_size=100,
         coefficients=W4,
         coord_dofs=DOF_4x3,
@@ -85,7 +87,7 @@ def hyperelasticity_p1tet() -> FormTestData:
 
     return FormTestData(
         form_name=form_name,
-        form_gen=lambda: get_form(form_name),
+        form_code=get_form_code(form_name),
         element_tensor_size=144,
         coefficients=W3x12,
         coord_dofs=DOF_4x3,
@@ -98,7 +100,7 @@ def stokes_p2p1tet() -> FormTestData:
 
     return FormTestData(
         form_name=form_name,
-        form_gen=lambda: get_form(form_name),
+        form_code=get_form_code(form_name),
         element_tensor_size=1156,
         coefficients=W4,
         coord_dofs=DOF_4x3,

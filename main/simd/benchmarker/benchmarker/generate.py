@@ -46,6 +46,27 @@ def compile_form(form: ufl.Form, prefix: str, extra_ffc_args=None) -> Tuple[str,
     return function_name, tabulate_tensor_code
 
 
+def eval_with_globals(expr: str, globals_def: str, globals_cache: Dict):
+    """
+    Evaluates an expression in an environment and returns its result.
+
+    The environments are cached and re-used when the same string is supplied as an environment again.
+
+    :param expr: String containing the expression that will be evaluated with the globals.
+    :param globals_def: String defining globals (i.e. an environment) that is required by the expression.
+    :return: The return value of the expression.
+    """
+
+    namespace = {}
+    try:
+        namespace = globals_cache[globals_def]
+    except KeyError:
+        exec(globals_def, namespace)
+        globals_cache[globals_def] = namespace
+
+    return eval(expr, copy(namespace))
+
+
 def generate_benchmark_code(test_case: TestCase) -> Tuple[Dict[str, List[Tuple[str, int]]], List[Tuple[str, str]]]:
     """
     Generates code for a TestCase.
@@ -57,6 +78,15 @@ def generate_benchmark_code(test_case: TestCase) -> Tuple[Dict[str, List[Tuple[s
         - a list containing tuples of all generated C sources and headers
     """
 
+    form_env_cache = dict()
+    forms = dict()
+
+    # Generate the UFL forms from their sources (independent of test parameter sets)
+    for form_def in test_case.forms:  # type: FormTestData
+        form_expr, form_env = form_def.form_code
+        forms[form_def.form_name] = eval_with_globals(form_expr, form_env, form_env_cache)
+
+    # Dict storing generated data (C code, wrapper function names, etc.) for the forms
     test_functions = {form_def.form_name: [] for form_def in test_case.forms}
 
     # Loop over all run arguments sets (e.g. FFC arguments)
@@ -70,8 +100,7 @@ def generate_benchmark_code(test_case: TestCase) -> Tuple[Dict[str, List[Tuple[s
 
         # Loop over all forms to generate tabulate_tensor code
         for form_def in test_case.forms:  # type: FormTestData
-            # Generate the UFL form
-            form = form_def.form_gen()
+            form = forms[form_def.form_name]
 
             # Run FFC (tabulate_tensor code generation)
             raw_function_name, raw_code = compile_form(form, form_def.form_name + "_" + str(j),

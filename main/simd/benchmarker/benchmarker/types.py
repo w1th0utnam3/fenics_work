@@ -8,7 +8,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 @dataclass
 class FormTestData():
     form_name: str
-    form_gen: Callable
+    form_code: Tuple[str, str]
     element_tensor_size: int
     coefficients: np.array
     coord_dofs: np.array

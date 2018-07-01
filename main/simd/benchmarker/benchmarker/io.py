@@ -50,29 +50,40 @@ def print_report(test_case: TestCase, report: BenchmarkReport):
         print("")
 
 
-def save_generated_data(name: str, test_fun_names: Dict, codes: List[Tuple[str, str]], path: str = ""):
+def save_generated_data(name: str, test_case: TestCase, test_fun_names: Dict, codes: List[Tuple[str, str]],
+                        path: str = "", readable_source: bool = False):
     """
     Stores the specified generated test case data in a set of files.
 
-    :param name: The base name for the set files.
+    :param name: The base name for the set of files.
+    :param test_case: The test case used to generate the data.
+    :param test_fun_names: Output of the generate module. The dict listing the wrapper function names for each form.
+    :param codes: Output of the generate module. The list of C source and header content tuples.
     :param path: Optional path where the files should be stored (otherwise uses working directory).
+    :param readable_source: Whether the source and header files should be stored as plain text .c .h files.
+        Otherwise, they are pickled into the data file.
     """
 
     output_basename = os.path.join(path, name)
 
-    def store_string(filename: str, content: str):
-        with open(filename, mode="w") as f:
-            f.write(content)
+    n_code_files = len(codes)
+    with open(output_basename + ".bdata", mode="wb") as f:
+        if readable_source:
+            pickle.dump((test_case, test_fun_names, n_code_files, []), f)
+        else:
+            pickle.dump((test_case, test_fun_names, n_code_files, codes), f)
 
-    test_fun_json = json.dumps(test_fun_names, indent=4)
-    store_string(output_basename + "_funs.json", test_fun_json)
+    if readable_source:
+        def store_string(filename: str, content: str):
+            with open(filename, mode="w") as f:
+                f.write(content)
 
-    for i, (code_c, code_h) in enumerate(codes):
-        store_string(output_basename + "_code_{}.c".format(i), code_c)
-        store_string(output_basename + "_code_{}.h".format(i), code_h)
+        for i, (code_c, code_h) in enumerate(codes):
+            store_string(output_basename + "_code_{}.c".format(i), code_c)
+            store_string(output_basename + "_code_{}.h".format(i), code_h)
 
 
-def load_generated_data(name: str, path: str = "") -> Tuple[Dict, List[Tuple[str, str]]]:
+def load_generated_data(name: str, path: str = "") -> Tuple[TestCase, Dict, List[Tuple[str, str]]]:
     """
     Loads a set of generated test case data from files.
 
@@ -83,43 +94,35 @@ def load_generated_data(name: str, path: str = "") -> Tuple[Dict, List[Tuple[str
 
     input_basename = os.path.join(path, name)
 
-    def load_string(filename: str) -> str:
-        with open(filename, mode="r") as f:
-            content = f.read()
-            return content
+    with open(input_basename + ".bdata", mode="rb") as f:
+        test_case, test_fun_names, n_code_files, codes = pickle.load(f)
 
-    n_code_files = 0
-    test_fun_json = load_string(input_basename + "_funs.json")
-    test_fun_names = json.loads(test_fun_json)
+    if len(codes) != n_code_files:
+        def load_string(filename: str) -> str:
+            with open(filename, mode="r") as f:
+                content = f.read()
+                return content
 
-    # Convert lists from json file to tuples
-    for form_name, test_function_list in test_fun_names.items():
-        for i in range(len(test_function_list)):
-            fun_name, code_idx = test_function_list[i][0], test_function_list[i][1]
-            test_function_list[i] = (fun_name, code_idx)
+        codes = []
+        for i in range(n_code_files):
+            code_c = load_string(input_basename + "_code_{}.c".format(i))
+            code_h = load_string(input_basename + "_code_{}.h".format(i))
+            codes.append((code_c, code_h))
 
-            n_code_files = max(n_code_files, code_idx)
-
-    codes = []
-    for i in range(n_code_files + 1):
-        code_c = load_string(input_basename + "_code_{}.c".format(i))
-        code_h = load_string(input_basename + "_code_{}.h".format(i))
-        codes.append((code_c, code_h))
-
-    return test_fun_names, codes
+    return test_case, test_fun_names, codes
 
 
-def save_report(filename: str, report: BenchmarkReport):
-    """Stores a benchmark report to the specified file."""
+def save_report(filename: str, test_case: TestCase, report: BenchmarkReport):
+    """Stores a BenchmarkReport and its TestCase to the specified file."""
 
     with open(filename, mode="wb") as f:
-        pickle.dump(report, f)
+        pickle.dump((test_case, report), f)
 
 
-def load_report(filename: str) -> BenchmarkReport:
-    """Loads a benchmark report from the specified file."""
+def load_report(filename: str) -> Tuple[TestCase, BenchmarkReport]:
+    """Loads a BenchmarkReport and its TestCase from the specified file."""
 
     with open(filename, mode="rb") as f:
-        report = pickle.load(f)
+        test_case, report = pickle.load(f)
 
-    return report
+    return test_case, report

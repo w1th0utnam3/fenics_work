@@ -34,13 +34,13 @@ def gen_test_case() -> TestCase:
     ffc_padded = {"optimize": True, "padlen": 4}
 
     one_element = TestRunArgs(
-        name="default",
+        name="ffc default",
         cross_element_width=0,
         ffc_args=ffc_default
     )
 
     one_element_padded = TestRunArgs(
-        name="padded",
+        name="fcc padded",
         cross_element_width=0,
         ffc_args=ffc_padded
     )
@@ -87,6 +87,7 @@ def gen_test_case() -> TestCase:
     )
 
     # Optional defines when using ICC
+    """
     test_case.compiler_defines = [
         ("__PURE_INTEL_C99_HEADERS__", ""),
         ("_Float32", "float"),
@@ -95,51 +96,46 @@ def gen_test_case() -> TestCase:
         ("_Float32x", "double"),
         ("_Float64x", "long double")
     ]
+    """
 
     return test_case
 
 
 def example_generate():
     """Generates example benchmark data and stores it in files."""
-
     import benchmarker.generate as generate
 
     test_case = gen_test_case()
     test_fun_names, codes = generate.generate_benchmark_code(test_case)
-    io.save_generated_data("example_benchmark_data", test_fun_names, codes)
+    io.save_generated_data("example_benchmark_data", test_case, test_fun_names, codes)
 
 
 def example_run(report_filename: str):
     """Loads example benchmark data and runs it."""
 
-    test_case = gen_test_case()
-    test_fun_names, codes = io.load_generated_data("example_benchmark_data")
+    test_case, test_fun_names, codes = io.load_generated_data("example_benchmark_data")
 
     report = execute.run_benchmark(test_case, test_fun_names, codes)
 
-    io.save_report(report_filename, report)
+    io.save_report(report_filename, test_case, report)
     io.print_report(test_case, report)
 
 
 def example_plot(report_filename: str):
     """Loads example benchmark output and plots it."""
-
     import benchmarker.plot as plot
 
-    test_case = gen_test_case()
-    report = io.load_report(report_filename)
+    test_case, report = io.load_report(report_filename)
 
-    compile_args = ["default", "-ftree-vectorize"]
+    compile_args = ["icc default"]
 
     combinations_to_plot = [
+        (0, 0),
         (0, 1),
         (0, 2),
-        (1, 1),
-        (1, 2),
-        (1, 3)
     ]
 
-    reference_ind = (0,0)
+    reference_ind = (0, 0)
 
     plot.plot_report(test_case, report, compile_args, combinations_to_plot, reference_ind)
 

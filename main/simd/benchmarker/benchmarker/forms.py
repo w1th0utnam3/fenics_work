@@ -1,8 +1,7 @@
 from ufl import *
-from typing import Optional
 
 
-def laplace_form(element: FiniteElement, coeff_element: Optional[FiniteElement] = None) -> Form:
+def laplace_form(element: FiniteElement, coeff_element: FiniteElement = None) -> Form:
     v = TestFunction(element)
     u = TrialFunction(element)
 
