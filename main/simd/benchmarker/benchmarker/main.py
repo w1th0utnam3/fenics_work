@@ -122,6 +122,10 @@ def example_run(report_filename: str):
 
 
 def example_plot(report_filename: str):
+    """Loads example benchmark output and plots it."""
+
+    import benchmarker.plot as plot
+
     test_case = gen_test_case()
     report = io.load_report(report_filename)
 
@@ -137,7 +141,7 @@ def example_plot(report_filename: str):
 
     reference_ind = (0,0)
 
-    io.plot_report(test_case, report, compile_args, combinations_to_plot, reference_ind)
+    plot.plot_report(test_case, report, compile_args, combinations_to_plot, reference_ind)
 
 
 def example_simple():
@@ -157,9 +161,7 @@ def main():
     subparsers = parser.add_subparsers(dest='command')
     subparsers.add_parser("generate", add_help=False)
     subparsers.add_parser("run", add_help=False)
-
-    plot_parser = subparsers.add_parser("plot")
-    plot_parser.add_argument("report_filename", help="Input filename of the benchmark report that should be plotted")
+    subparsers.add_parser("plot", add_help=False)
 
     args, unknown_args = parser.parse_known_args()
 
@@ -176,6 +178,9 @@ def main():
         example_run(args.report_filename)
 
     elif args.command == "plot":
+        from benchmarker.plot import parse_args
+        args = parse_args(unknown_args)
+
         example_plot(args.report_filename)
 
     else:
