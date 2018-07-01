@@ -6,13 +6,14 @@ import importlib
 import numpy as np
 from typing import Dict, List, Tuple
 
-from benchmarker.types import BenchmarkReport, TestCase, TestRunArgs, FormTestData, FormTestResult
+from benchmarker.types import BenchmarkReport, TestCase, TestRunParameters, FormTestData, FormTestResult
 
 
 def parse_args(args):
     parser = argparse.ArgumentParser(prog="{} run".format(sys.argv[0]),
                                      description="Runs previously generated benchmark data. Does not require FEniCS.")
-    parser.add_argument("report_filename", help="Output filename for the benchmark report that will be generated")
+    parser.add_argument("data_filename", help="Input filename for the benchmark data that should be run.")
+    parser.add_argument("report_filename", help="Output filename for the benchmark report that should be generated.")
 
     return parser.parse_args(args)
 
@@ -139,7 +140,7 @@ def run_benchmark(test_case: TestCase, test_fun_names: Dict, codes: List[Tuple[s
                 if verbose:
                     print("({}/{}) Running test function '{}'".format(test_counter, total_tests, fun_name))
 
-                run_arg_set = test_case.run_args[j]  # type: TestRunArgs
+                run_arg_set = test_case.run_args[j]  # type: TestRunParameters
                 form_data = test_case.forms[form_idx]  # type: FormTestData
 
                 n_elem = form_data.n_elems

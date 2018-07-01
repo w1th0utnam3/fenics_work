@@ -3,8 +3,12 @@ import argparse
 import benchmarker.execute as execute
 import benchmarker.io as io
 import benchmarker.form_data as forms
-from benchmarker.types import TestCase, TestRunArgs
+from benchmarker.types import TestCase, TestRunParameters
 
+
+# TODO: remove speedup calculation before plotting?
+# TODO: add name for compile parameter set during test case definition
+# TODO: proper configuration of plotting
 
 def gen_test_case() -> TestCase:
     """Generates an example test case."""
@@ -33,37 +37,37 @@ def gen_test_case() -> TestCase:
     # FFC with padding enabled
     ffc_padded = {"optimize": True, "padlen": 4}
 
-    one_element = TestRunArgs(
+    one_element = TestRunParameters(
         name="ffc default",
         cross_element_width=0,
         ffc_args=ffc_default
     )
 
-    one_element_padded = TestRunArgs(
-        name="fcc padded",
+    one_element_padded = TestRunParameters(
+        name="ffc padded",
         cross_element_width=0,
         ffc_args=ffc_padded
     )
 
-    four_elements = TestRunArgs(
+    four_elements = TestRunParameters(
         name="4x cross element",
         cross_element_width=4,
         ffc_args=ffc_default
     )
 
-    four_elements_0 = TestRunArgs(
+    four_elements_0 = TestRunParameters(
         name="4x ce, gcc exts",
         cross_element_width=4,
         ffc_args={"optimize": True, "enable_cross_element_gcc_ext": True}
     )
 
-    four_elements_1 = TestRunArgs(
+    four_elements_1 = TestRunParameters(
         name="4x ce, scalar sp",
         cross_element_width=4,
         ffc_args={"optimize": True, "enable_cross_element_array_conv": True}
     )
 
-    four_elements_2 = TestRunArgs(
+    four_elements_2 = TestRunParameters(
         name="4x ce, ssp, fused",
         cross_element_width=4,
         ffc_args={"optimize": True, "enable_cross_element_array_conv": True, "enable_cross_element_fuse": True}
@@ -79,7 +83,7 @@ def gen_test_case() -> TestCase:
             one_element,
             one_element_padded,
             four_elements,
-            four_elements_0
+            # four_elements_0
         ],
         forms=forms.get_all_forms(),
         reference_case=(0, 0),
@@ -87,7 +91,6 @@ def gen_test_case() -> TestCase:
     )
 
     # Optional defines when using ICC
-    """
     test_case.compiler_defines = [
         ("__PURE_INTEL_C99_HEADERS__", ""),
         ("_Float32", "float"),
@@ -96,24 +99,23 @@ def gen_test_case() -> TestCase:
         ("_Float32x", "double"),
         ("_Float64x", "long double")
     ]
-    """
 
     return test_case
 
 
-def example_generate():
+def example_generate(data_filename: str):
     """Generates example benchmark data and stores it in files."""
     import benchmarker.generate as generate
 
     test_case = gen_test_case()
     test_fun_names, codes = generate.generate_benchmark_code(test_case)
-    io.save_generated_data("example_benchmark_data", test_case, test_fun_names, codes)
+    io.save_generated_data(data_filename, test_case, test_fun_names, codes)
 
 
-def example_run(report_filename: str):
+def example_run(data_filename: str, report_filename: str):
     """Loads example benchmark data and runs it."""
 
-    test_case, test_fun_names, codes = io.load_generated_data("example_benchmark_data")
+    test_case, test_fun_names, codes = io.load_generated_data(data_filename)
 
     report = execute.run_benchmark(test_case, test_fun_names, codes)
 
@@ -121,23 +123,50 @@ def example_run(report_filename: str):
     io.print_report(test_case, report)
 
 
-def example_plot(report_filename: str):
+def example_plot(report_filenames: str):
     """Loads example benchmark output and plots it."""
     import benchmarker.plot as plot
 
-    test_case, report = io.load_report(report_filename)
+    if len(report_filenames) == 1:
+        test_case, report = io.load_report(report_filenames[0])
 
-    compile_args = ["icc default"]
+        compile_args = ["icc default"]
 
-    combinations_to_plot = [
-        (0, 0),
-        (0, 1),
-        (0, 2),
-    ]
+        combinations_to_plot = [
+            (0, 0),
+            (0, 1),
+            (0, 2),
+        ]
 
-    reference_ind = (0, 0)
+        reference_ind = (0, 0)
 
-    plot.plot_report(test_case, report, compile_args, combinations_to_plot, reference_ind)
+        plot.plot_report(test_case, report, compile_args, combinations_to_plot, reference_ind)
+    else:
+        cases_and_reports = [io.load_report(report_filename) for report_filename in report_filenames]
+        cases = [case for case, report in cases_and_reports]
+        reports = [report for case, report in cases_and_reports]
+
+        compile_args_gcc = ["gcc", "gcc vec"]
+        compile_args_icc = ["icc", "icc vec"]
+
+        combinations_gcc = [
+            (1, 1),
+            (1, 2),
+            (1, 3),
+        ]
+
+        combinations_icc = [
+            (1, 0),
+            (1, 1),
+            (1, 2),
+        ]
+
+        joined_data = plot.join_over_compile_args(cases, reports,
+                                                  [compile_args_gcc, compile_args_icc],
+                                                  [combinations_gcc, combinations_icc],
+                                                  (0, 0, 0))
+
+        plot.plot_report(*joined_data)
 
 
 def example_simple():
@@ -165,13 +194,13 @@ def main():
         from benchmarker.generate import parse_args
         args = parse_args(unknown_args)
 
-        example_generate()
+        example_generate(args.data_filename)
 
     elif args.command == "run":
         from benchmarker.execute import parse_args
         args = parse_args(unknown_args)
 
-        example_run(args.report_filename)
+        example_run(args.data_filename, args.report_filename)
 
     elif args.command == "plot":
         from benchmarker.plot import parse_args

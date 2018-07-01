@@ -6,13 +6,14 @@ import argparse
 from copy import copy
 from typing import Dict, List, Tuple
 
-from benchmarker.types import TestCase, FormTestData, TestRunArgs
+from benchmarker.types import TestCase, FormTestData, TestRunParameters
 from benchmarker.c_code import wrap_tabulate_tensor_code, join_test_wrappers
 
 
 def parse_args(args):
     parser = argparse.ArgumentParser(prog="{} generate".format(sys.argv[0]),
-                                     description="Generates benchmark data. Requires a FEniCS installtion.")
+                                     description="Generates benchmark data. Requires a FEniCS installation.")
+    parser.add_argument("data_filename", help="Output filename for the benchmark data that should be generated.")
     return parser.parse_args(args)
 
 
@@ -90,7 +91,7 @@ def generate_benchmark_code(test_case: TestCase) -> Tuple[Dict[str, List[Tuple[s
     test_functions = {form_def.form_name: [] for form_def in test_case.forms}
 
     # Loop over all run arguments sets (e.g. FFC arguments)
-    for j, run_arg_set in enumerate(test_case.run_args):  # type: int, TestRunArgs
+    for j, run_arg_set in enumerate(test_case.run_args):  # type: int, TestRunParameters
         ffc_arg_set = copy(run_arg_set.ffc_args)
         cross_element_width = run_arg_set.cross_element_width
         if cross_element_width > 0:

@@ -5,7 +5,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
-from benchmarker.types import TestCase, BenchmarkReport, TestRunArgs, FormTestResult
+from benchmarker.types import TestCase, BenchmarkReport, TestRunParameters, FormTestResult
 
 
 def print_report(test_case: TestCase, report: BenchmarkReport):
@@ -18,7 +18,7 @@ def print_report(test_case: TestCase, report: BenchmarkReport):
 
     # Get the length of the longest run args name
     longest_name = 0
-    for run_arg_set in test_case.run_args:  # type: TestRunArgs
+    for run_arg_set in test_case.run_args:  # type: TestRunParameters
         longest_name = np.maximum(longest_name, len(run_arg_set.name))
 
     # Loop over results of all forms
@@ -65,9 +65,13 @@ def save_generated_data(name: str, test_case: TestCase, test_fun_names: Dict, co
     """
 
     output_basename = os.path.join(path, name)
+    if name.endswith(".bdata"):
+        output_ext = ""
+    else:
+        output_ext = ".bdata"
 
     n_code_files = len(codes)
-    with open(output_basename + ".bdata", mode="wb") as f:
+    with open(output_basename + output_ext, mode="wb") as f:
         if readable_source:
             pickle.dump((test_case, test_fun_names, n_code_files, []), f)
         else:
@@ -93,8 +97,12 @@ def load_generated_data(name: str, path: str = "") -> Tuple[TestCase, Dict, List
     """
 
     input_basename = os.path.join(path, name)
+    if name.endswith(".bdata"):
+        input_ext = ""
+    else:
+        input_ext = ".bdata"
 
-    with open(input_basename + ".bdata", mode="rb") as f:
+    with open(input_basename + input_ext, mode="rb") as f:
         test_case, test_fun_names, n_code_files, codes = pickle.load(f)
 
     if len(codes) != n_code_files:
