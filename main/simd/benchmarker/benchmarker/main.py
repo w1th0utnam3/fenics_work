@@ -124,7 +124,20 @@ def example_run(report_filename: str):
 def example_plot(report_filename: str):
     test_case = gen_test_case()
     report = io.load_report(report_filename)
-    io.plot_report(test_case, report)
+
+    compile_args = ["default", "-ftree-vectorize"]
+
+    combinations_to_plot = [
+        (0, 1),
+        (0, 2),
+        (1, 1),
+        (1, 2),
+        (1, 3)
+    ]
+
+    reference_ind = (0,0)
+
+    io.plot_report(test_case, report, compile_args, combinations_to_plot, reference_ind)
 
 
 def example_simple():
