@@ -6,7 +6,7 @@ import importlib
 import numpy as np
 from typing import Dict, List, Tuple
 
-from benchmarker.types import BenchmarkReport, TestCase, TestRunParameters, FormTestData, FormTestResult
+from ttbench.types import BenchmarkReport, TestCase, TestRunParameters, FormTestData, FormTestResult
 
 
 def parse_args(args):

@@ -6,8 +6,8 @@ import argparse
 from copy import copy
 from typing import Dict, List, Tuple
 
-from benchmarker.types import TestCase, FormTestData, TestRunParameters
-from benchmarker.c_code import wrap_tabulate_tensor_code, join_test_wrappers
+from ttbench.types import TestCase, FormTestData, TestRunParameters
+from ttbench.c_code import wrap_tabulate_tensor_code, join_test_wrappers
 
 
 def parse_args(args):

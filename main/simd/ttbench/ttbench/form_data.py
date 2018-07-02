@@ -2,7 +2,7 @@ import inspect
 import numpy as np
 from typing import List, Tuple
 
-from benchmarker.types import FormTestData
+from ttbench.types import FormTestData
 
 W3 = np.linspace(1, 2, num=3, dtype=np.double)[np.newaxis, :]
 W4 = np.linspace(1, 2, num=4, dtype=np.double)[np.newaxis, :]
@@ -24,8 +24,8 @@ DOF_4x3 = np.asarray([
 
 
 def get_form_code(form_name: str) -> Tuple[str, str]:
-    import benchmarker.forms
-    form_env = inspect.getsource(benchmarker.forms)
+    import ttbench.forms
+    form_env = inspect.getsource(ttbench.forms)
     form_expr = "{}()".format(form_name)
     return form_expr, form_env
 

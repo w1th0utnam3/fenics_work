@@ -1,6 +1,6 @@
 from typing import Tuple
 
-from benchmarker.types import FormTestData
+from ttbench.types import FormTestData
 
 import simd.utils as utils
 

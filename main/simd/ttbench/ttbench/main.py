@@ -1,10 +1,8 @@
 import argparse
 
-import benchmarker.execute as execute
-import benchmarker.config as config
-import benchmarker.io as io
-import benchmarker.form_data as forms
-from benchmarker.types import TestCase, TestRunParameters
+import ttbench.run as run
+import ttbench.config as config
+import ttbench.io as io
 
 
 # TODO: remove speedup calculation before plotting?
@@ -14,7 +12,7 @@ from benchmarker.types import TestCase, TestRunParameters
 
 def example_generate(data_filename: str):
     """Generates example benchmark data and stores it in files."""
-    import benchmarker.generate as generate
+    import ttbench.generate as generate
 
     test_case = config.gen_test_case()
     test_fun_names, codes = generate.generate_benchmark_code(test_case)
@@ -26,7 +24,7 @@ def example_run(data_filename: str, report_filename: str):
 
     test_case, test_fun_names, codes = io.load_generated_data(data_filename)
 
-    report = execute.run_benchmark(test_case, test_fun_names, codes)
+    report = run.run_benchmark(test_case, test_fun_names, codes)
 
     io.save_report(report_filename, test_case, report)
     io.print_report(test_case, report)
@@ -34,7 +32,7 @@ def example_run(data_filename: str, report_filename: str):
 
 def example_plot(report_filenames: str):
     """Loads example benchmark output and plots it."""
-    import benchmarker.plot as plot
+    import ttbench.plot as plot
 
     if len(report_filenames) == 1:
         test_case, report = io.load_report(report_filenames[0])
@@ -64,24 +62,25 @@ def main():
 
     args, unknown_args = parser.parse_known_args()
 
+    # Generate benchmark data
     if args.command == "generate":
-        from benchmarker.generate import parse_args
+        from ttbench.generate import parse_args
         args = parse_args(unknown_args)
 
         example_generate(args.data_filename)
-
+    # Run a benchmark
     elif args.command == "run":
-        from benchmarker.execute import parse_args
+        from ttbench.run import parse_args
         args = parse_args(unknown_args)
 
         example_run(args.data_filename, args.report_filename)
-
+    # Plotting results
     elif args.command == "plot":
-        from benchmarker.plot import parse_args
+        from ttbench.plot import parse_args
         args = parse_args(unknown_args)
 
         example_plot(args.report_filename)
-
+    # Display help text if no subcommand was specified
     else:
         parser.print_help()
 

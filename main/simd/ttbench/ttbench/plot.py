@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from benchmarker.types import TestCase, BenchmarkReport
+from ttbench.types import TestCase, BenchmarkReport
 
 
 def parse_args(args):

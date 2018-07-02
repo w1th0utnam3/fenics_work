@@ -5,7 +5,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
-from benchmarker.types import TestCase, BenchmarkReport, TestRunParameters, FormTestResult
+from ttbench.types import TestCase, BenchmarkReport, TestRunParameters, FormTestResult
 
 
 def print_report(test_case: TestCase, report: BenchmarkReport):

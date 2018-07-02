@@ -1,5 +1,5 @@
-import benchmarker.form_data as form_data
-from benchmarker.types import TestCase, TestRunParameters, BenchmarkReport
+import ttbench.form_data as form_data
+from ttbench.types import TestCase, TestRunParameters, BenchmarkReport
 
 from typing import List
 
