@@ -20,6 +20,7 @@ TEST_RUNNER_CODE = """// BEGIN CODE FOR {tabulate_tensor_fun_name}
 {tabulate_tensor_fun_code}
 
 #define A_SIZE {A_SIZE_val}
+#define A_SIZE_EXPANDED ({A_SIZE_val} % 4 == 0) ? {A_SIZE_val} : {A_SIZE_val} - ({A_SIZE_val} % 4) + 4
 #define W_DIM1_SIZE {W_DIM1_SIZE_val}
 #define W_DIM2_SIZE {W_DIM2_SIZE_val}
 #define DOF_DIM1_SIZE {DOF_DIM1_SIZE_val}
@@ -45,20 +46,20 @@ double {test_runner_fun_name}(
         for (int j = 0; j < DOF_DIM2_SIZE; ++j)
             coords[i][j] = coord_vals[i*DOF_DIM2_SIZE + j];
 
-    // Allocate element tensor space once (should be set to zero inside of tabulate_tensor)
-    alignas(32) double A[A_SIZE];
+    // Allocate element tensor space once
+    alignas(32) double A[A_SIZE_EXPANDED] = { 0.0 };
 
-    double result = 0.0;
-    double acc;
+    double acc[4] = { 0.0 };
     for(int i = 0; i < n; ++i) {
         {tabulate_tensor_fun_name}(({scalar_type}*)&A[0], (const {scalar_type}* const*)&w_ptrs[0], (const {scalar_type}*)&coords[0][0], 0);
         
         // Reduce element tensor to use output
-        acc = 0;
-        for(int j = 0; j < A_SIZE; ++j) {
-            acc += fabs(A[j]);
+        for(int j = 0; j < A_SIZE; j+=4) {
+            acc[0 + 0] += fabs(A[j + 0]);
+            acc[0 + 1] += fabs(A[j + 1]);
+            acc[0 + 2] += fabs(A[j + 2]);
+            acc[0 + 3] += fabs(A[j + 3]);
         }
-        result += acc;
 
         // Increment coordinates to have varying inputs
         for(int j = 0; j < DOF_DIM1_SIZE; ++j)
@@ -66,7 +67,7 @@ double {test_runner_fun_name}(
                 coords[j][k] += 0.01;
     }
 
-    return result;
+    return acc[0] + acc[1] + acc[2] + acc[3];
 }
 
 #undef A_SIZE
