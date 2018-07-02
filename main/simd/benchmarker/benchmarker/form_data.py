@@ -39,7 +39,7 @@ def laplace_p2tet_coefficient_p1tet() -> FormTestData:
         element_tensor_size=100,
         coefficients=W4,
         coord_dofs=DOF_4x3,
-        n_elems=int(np.floor(120 ** 3 / 4) * 4)
+        n_elems=int(np.floor(110 ** 3 / 4) * 4)
     )
 
 
@@ -52,7 +52,7 @@ def laplace_p1tri() -> FormTestData:
         element_tensor_size=9,
         coefficients=W3,
         coord_dofs=DOF_3x2,
-        n_elems=int(np.floor(600 ** 3 / 4) * 4)
+        n_elems=int(np.floor(500 ** 3 / 4) * 4)
     )
 
 
@@ -91,7 +91,7 @@ def hyperelasticity_p1tet() -> FormTestData:
         element_tensor_size=144,
         coefficients=W3x12,
         coord_dofs=DOF_4x3,
-        n_elems=int(np.floor(140 ** 3 / 4) * 4)
+        n_elems=int(np.floor(160 ** 3 / 4) * 4)
     )
 
 
@@ -104,7 +104,7 @@ def stokes_p2p1tet() -> FormTestData:
         element_tensor_size=1156,
         coefficients=W4,
         coord_dofs=DOF_4x3,
-        n_elems=int(np.floor(110 ** 3 / 4) * 4)
+        n_elems=int(np.floor(120 ** 3 / 4) * 4)
     )
 
 

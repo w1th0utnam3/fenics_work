@@ -1,6 +1,7 @@
 import argparse
 
 import benchmarker.execute as execute
+import benchmarker.config as config
 import benchmarker.io as io
 import benchmarker.form_data as forms
 from benchmarker.types import TestCase, TestRunParameters
@@ -10,104 +11,12 @@ from benchmarker.types import TestCase, TestRunParameters
 # TODO: add name for compile parameter set during test case definition
 # TODO: proper configuration of plotting
 
-def gen_test_case() -> TestCase:
-    """Generates an example test case."""
-
-    # Warning: every parameter needs its own entry due to os.exec behavior
-    # Default GCC parameters
-    gcc_default = {
-        "-O2": True,
-        "-funroll-loops": False,
-        "-ftree-vectorize": False,
-        "-march=skylake": True,
-        "-mtune=skylake": False,
-    }
-
-    # GCC parameters with auto vectorization
-    gcc_auto_vectorize = {
-        "-O2": True,
-        "-funroll-loops": True,
-        "-ftree-vectorize": True,
-        "-march=skylake": True,
-        "-mtune=skylake": True,
-    }
-
-    # Default FFC parameters
-    ffc_default = {"optimize": True}
-    # FFC with padding enabled
-    ffc_padded = {"optimize": True, "padlen": 4}
-
-    one_element = TestRunParameters(
-        name="ffc default",
-        cross_element_width=0,
-        ffc_args=ffc_default
-    )
-
-    one_element_padded = TestRunParameters(
-        name="ffc padded",
-        cross_element_width=0,
-        ffc_args=ffc_padded
-    )
-
-    four_elements = TestRunParameters(
-        name="4x cross element",
-        cross_element_width=4,
-        ffc_args=ffc_default
-    )
-
-    four_elements_0 = TestRunParameters(
-        name="4x ce, gcc exts",
-        cross_element_width=4,
-        ffc_args={"optimize": True, "enable_cross_element_gcc_ext": True}
-    )
-
-    four_elements_1 = TestRunParameters(
-        name="4x ce, scalar sp",
-        cross_element_width=4,
-        ffc_args={"optimize": True, "enable_cross_element_array_conv": True}
-    )
-
-    four_elements_2 = TestRunParameters(
-        name="4x ce, ssp, fused",
-        cross_element_width=4,
-        ffc_args={"optimize": True, "enable_cross_element_array_conv": True, "enable_cross_element_fuse": True}
-    )
-
-    # Combine all options: benchmark will be cartesian product of compiler_args, run_args and forms
-    test_case = TestCase(
-        compiler_args=[
-            gcc_default,
-            gcc_auto_vectorize
-        ],
-        run_args=[
-            one_element,
-            one_element_padded,
-            four_elements,
-            # four_elements_0
-        ],
-        forms=forms.get_all_forms(),
-        reference_case=(0, 0),
-        n_repeats=3
-    )
-
-    # Optional defines when using ICC
-    test_case.compiler_defines = [
-        ("__PURE_INTEL_C99_HEADERS__", ""),
-        ("_Float32", "float"),
-        ("_Float64", "double"),
-        ("_Float128", "long double"),
-        ("_Float32x", "double"),
-        ("_Float64x", "long double")
-    ]
-
-    return test_case
-
 
 def example_generate(data_filename: str):
     """Generates example benchmark data and stores it in files."""
     import benchmarker.generate as generate
 
-    test_case = gen_test_case()
+    test_case = config.gen_test_case()
     test_fun_names, codes = generate.generate_benchmark_code(test_case)
     io.save_generated_data(data_filename, test_case, test_fun_names, codes)
 
@@ -130,55 +39,20 @@ def example_plot(report_filenames: str):
     if len(report_filenames) == 1:
         test_case, report = io.load_report(report_filenames[0])
 
-        compile_args = ["icc default"]
-
-        combinations_to_plot = [
-            (0, 0),
-            (0, 1),
-            (0, 2),
-        ]
-
-        reference_ind = (0, 0)
-
-        plot.plot_report(test_case, report, compile_args, combinations_to_plot, reference_ind)
+        io.print_report(test_case, report)
+        plot.plot_report(test_case, report, *config.plot_params_single_file())
     else:
         cases_and_reports = [io.load_report(report_filename) for report_filename in report_filenames]
-        cases = [case for case, report in cases_and_reports]
+
+        # Print all reports
+        for test_case, report in cases_and_reports:
+            io.print_report(test_case, report)
+
+        test_cases = [case for case, report in cases_and_reports]
         reports = [report for case, report in cases_and_reports]
 
-        compile_args_gcc = ["gcc", "gcc vec"]
-        compile_args_icc = ["icc", "icc vec"]
-
-        combinations_gcc = [
-            (1, 1),
-            (1, 2),
-            (1, 3),
-        ]
-
-        combinations_icc = [
-            (1, 0),
-            (1, 1),
-            (1, 2),
-        ]
-
-        joined_data = plot.join_over_compile_args(cases, reports,
-                                                  [compile_args_gcc, compile_args_icc],
-                                                  [combinations_gcc, combinations_icc],
-                                                  (0, 0, 0))
-
+        joined_data = plot.join_over_compile_args(test_cases, reports, *config.plot_params_multiple_files())
         plot.plot_report(*joined_data)
-
-
-def example_simple():
-    """Generates and runs the example benchmark without saving."""
-
-    import benchmarker.generate as generate
-
-    test_case = gen_test_case()
-
-    test_fun_names, codes = generate.generate_benchmark_code(test_case)
-    report = execute.run_benchmark(test_case, test_fun_names, codes)
-    io.print_report(test_case, report)
 
 
 def main():
@@ -209,6 +83,6 @@ def main():
         example_plot(args.report_filename)
 
     else:
-        example_simple()
+        parser.print_help()
 
     return 0
