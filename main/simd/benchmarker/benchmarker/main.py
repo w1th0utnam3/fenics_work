@@ -40,7 +40,7 @@ def example_plot(report_filenames: str):
         test_case, report = io.load_report(report_filenames[0])
 
         io.print_report(test_case, report)
-        plot.plot_report(test_case, report, *config.plot_params_single_file())
+        plot.plot_report(test_case, report, *config.plot_params_single_file(test_case, report))
     else:
         cases_and_reports = [io.load_report(report_filename) for report_filename in report_filenames]
 
@@ -51,7 +51,7 @@ def example_plot(report_filenames: str):
         test_cases = [case for case, report in cases_and_reports]
         reports = [report for case, report in cases_and_reports]
 
-        joined_data = plot.join_over_compile_args(test_cases, reports, *config.plot_params_multiple_files())
+        joined_data = plot.join_over_compile_args(test_cases, reports, *config.plot_params_multiple_files(test_cases, reports))
         plot.plot_report(*joined_data)
 
 

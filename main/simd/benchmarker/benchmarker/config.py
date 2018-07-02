@@ -1,5 +1,7 @@
 import benchmarker.form_data as form_data
-from benchmarker.types import TestCase, TestRunParameters
+from benchmarker.types import TestCase, TestRunParameters, BenchmarkReport
+
+from typing import List
 
 def gen_test_case() -> TestCase:
     """Generates an example test case."""
@@ -97,13 +99,12 @@ def gen_test_case() -> TestCase:
     return test_case
 
 
-def plot_params_single_file():
+def plot_params_single_file(test_case: TestCase, report: BenchmarkReport):
     compile_args = ["gcc default", "gcc + vec flags"]
 
     combinations_to_plot = [
-        (1, 1),
-        (1, 2),
-        (1, 3),
+        (0, 1),
+        (0, 2),
     ]
 
     reference_ind = (0, 0)
@@ -111,7 +112,7 @@ def plot_params_single_file():
     return compile_args, combinations_to_plot, reference_ind
 
 
-def plot_params_multiple_files():
+def plot_params_multiple_files(test_cases: List[TestCase], reports: List[BenchmarkReport]):
     compile_args_gcc = ["gcc", "gcc + vec flags"]
     compile_args_icc = ["icc", "icc + vec flags"]
 
