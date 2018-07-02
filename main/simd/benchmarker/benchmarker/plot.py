@@ -51,7 +51,8 @@ def plot_report(test_case: TestCase, report: BenchmarkReport,
 
     df = pd.DataFrame(speedup, columns=columns)
     # Assign form names to rows
-    df = df.rename(index={i: name for i, name in enumerate(form_names)})
+    labels = [form_name + " ({:.2f}ms)".format(form_results[reference_combination].avg * 1000) for form_name, form_results in report.results.items()]
+    df = df.rename(index={i: label for i, label in enumerate(labels)})
     # Create the plot
     df.plot.barh(figsize=(10, len(form_names) * 1.4))
 
@@ -61,7 +62,7 @@ def plot_report(test_case: TestCase, report: BenchmarkReport,
     ax.invert_yaxis()
 
     ax.grid(axis="x")
-    ax.set_xlabel("Speedup factor vs. gcc and ffc with default parameters")
+    ax.set_xlabel("Speedup factor in comparison to gcc and ffc with default parameters")
 
     plt.show()
     return
