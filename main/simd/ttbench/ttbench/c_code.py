@@ -6,10 +6,16 @@ import simd.utils as utils
 
 TEST_RUN_SKELETON = """
 #include <math.h>
-#include <stdalign.h>
+
+#ifndef _MSC_VER
+    #include <stdalign.h>
+    typedef double double4 __attribute__ ((vector_size (32)));
+#else
+    #define alignas(X)
+    #define restrict __restrict
+#endif
 
 typedef double ufc_scalar_t;
-typedef double double4 __attribute__ ((vector_size (32)));
 
 {tabulate_tensor_wrappers}
 """
