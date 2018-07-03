@@ -4,6 +4,7 @@ from typing import List, Tuple
 
 from ttbench.types import FormTestData
 
+W1 = np.linspace(1, 2, num=1, dtype=np.double)[np.newaxis, :]
 W3 = np.linspace(1, 2, num=3, dtype=np.double)[np.newaxis, :]
 W4 = np.linspace(1, 2, num=4, dtype=np.double)[np.newaxis, :]
 W12 = np.linspace(1, 2, num=12, dtype=np.double)[np.newaxis, :]
@@ -102,7 +103,7 @@ def stokes_p2p1tet() -> FormTestData:
         form_name=form_name,
         form_code=get_form_code(form_name),
         element_tensor_size=1156,
-        coefficients=W4,
+        coefficients=W1,
         coord_dofs=DOF_4x3,
         n_elems=int(np.floor(120 ** 3 / 4) * 4)
     )

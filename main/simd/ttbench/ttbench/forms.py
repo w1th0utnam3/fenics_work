@@ -1,6 +1,5 @@
 from ufl import *
 
-
 def laplace_form(element: FiniteElement, coeff_element: FiniteElement = None) -> Form:
     v = TestFunction(element)
     u = TrialFunction(element)
@@ -12,20 +11,20 @@ def laplace_form(element: FiniteElement, coeff_element: FiniteElement = None) ->
         return c * inner(grad(u), grad(v)) * dx
 
 
-def laplace_p2tet_coefficient_p1tet():
+def laplace_p2tet_coefficient_p1tet() -> Form:
     return laplace_form(FiniteElement("Lagrange", tetrahedron, 2),
                         FiniteElement("Lagrange", tetrahedron, 1))
 
 
-def laplace_p1tri():
+def laplace_p1tri() -> Form:
     return laplace_form(FiniteElement("Lagrange", triangle, 1))
 
 
-def laplace_p2tet():
+def laplace_p2tet() -> Form:
     return laplace_form(FiniteElement("Lagrange", tetrahedron, 2))
 
 
-def biharmonic_form(element: FiniteElement):
+def biharmonic_form(element: FiniteElement) -> Form:
     cell = element.cell()
 
     # Trial and test functions
@@ -49,12 +48,12 @@ def biharmonic_form(element: FiniteElement):
            + alpha / h_avg * inner(jump(grad(u), n), jump(grad(v), n)) * dS
 
 
-def biharmonic_p2tet():
+def biharmonic_p2tet() -> Form:
     element = FiniteElement("Lagrange", tetrahedron, 2)
     return biharmonic_form(element)
 
 
-def hyperelasticity_form(element: VectorElement):
+def hyperelasticity_form(element: VectorElement) -> Form:
     cell = element.cell()
 
     # Coefficients
@@ -88,30 +87,26 @@ def hyperelasticity_form(element: VectorElement):
     return derivative(L, u, du)
 
 
-def hyperelasticity_p1tet():
+def hyperelasticity_p1tet() -> Form:
     element = VectorElement("Lagrange", tetrahedron, 1)
     return hyperelasticity_form(element)
 
 
-def stokes_form(vector: VectorElement, scalar: FiniteElement):
+def stokes_form(vector: VectorElement, scalar: FiniteElement) -> Form:
     system = vector * scalar
 
     (u, p) = TrialFunctions(system)
     (v, q) = TestFunctions(system)
 
     f = Coefficient(vector)
-    h = Coefficient(scalar)
 
-    beta = 0.2
-    delta = beta * h * h
-
-    a = (inner(grad(u), grad(v)) - div(v) * p + div(u) * q + delta * dot(grad(p), grad(q))) * dx
-    L = dot(f, v + delta * grad(q)) * dx
+    a =  (inner(grad(u), grad(v)) - div(v)*p + div(u)*q)*dx
+    L = dot(f, v) * dx
 
     return a
 
 
-def stokes_p2p1tet():
+def stokes_p2p1tet() -> Form:
     cell = tetrahedron
     vector = VectorElement("Lagrange", cell, 2)
     scalar = FiniteElement("Lagrange", cell, 1)
