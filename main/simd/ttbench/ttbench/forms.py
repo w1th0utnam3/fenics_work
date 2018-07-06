@@ -111,3 +111,19 @@ def stokes_p2p1tet() -> Form:
     vector = VectorElement("Lagrange", cell, 2)
     scalar = FiniteElement("Lagrange", cell, 1)
     return stokes_form(vector, scalar)
+
+
+def maxwell_eigenvalue_form(element: FiniteElement) -> Form:
+    cell = element.cell()
+
+    u = TrialFunction(element)
+    v = TestFunction(element)
+
+    a = (inner(curl(u), curl(v)) - Constant(cell, 1) * inner(u, v)) * dx
+
+    return a
+
+
+def maxwell_eigenvalue_nedelec3tet() -> Form:
+    element = FiniteElement("Nedelec 1st kind H(curl)", tetrahedron, 3)
+    return maxwell_eigenvalue_form(element)

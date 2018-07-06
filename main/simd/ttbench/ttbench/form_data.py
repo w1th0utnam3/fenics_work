@@ -109,6 +109,19 @@ def stokes_p2p1tet() -> FormTestData:
     )
 
 
+def maxwell_eigenvalue_nedelec3tet() -> FormTestData:
+    form_name = "maxwell_eigenvalue_nedelec3tet"
+
+    return FormTestData(
+        form_name=form_name,
+        form_code=get_form_code(form_name),
+        element_tensor_size=2025,
+        coefficients=W1,
+        coord_dofs=DOF_4x3,
+        n_elems=int(np.floor(30 ** 3 / 4) * 4)
+    )
+
+
 def get_all_forms() -> List[FormTestData]:
     return [
         laplace_p1tri(),
