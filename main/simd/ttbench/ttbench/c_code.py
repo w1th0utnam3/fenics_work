@@ -2,8 +2,6 @@ from typing import Tuple
 
 from ttbench.types import FormTestData
 
-import simd.utils as utils
-
 TEST_RUN_SKELETON = """
 #include <math.h>
 
@@ -19,7 +17,6 @@ typedef double ufc_scalar_t;
 
 {tabulate_tensor_wrappers}
 """
-
 
 TEST_RUNNER_CODE = """// BEGIN CODE FOR {tabulate_tensor_fun_name}
 
@@ -85,11 +82,19 @@ double {test_runner_fun_name}(
 // END CODE FOR {tabulate_tensor_fun_name}
 """
 
-
 TEST_RUNNER_SIGNATURE = "double {test_runner_fun_name}(" \
                         "int n, " \
                         "double* w_vals, " \
                         "double* coord_vals);"
+
+
+def replace_strings(text: str, replacement_pair_list) -> str:
+    """Performs replacement of all tuples in the supplied list on the string"""
+
+    new_text = text
+    for old, new in replacement_pair_list:
+        new_text = new_text.replace(old, new)
+    return new_text
 
 
 def wrap_tabulate_tensor_code(test_name: str,
@@ -98,7 +103,6 @@ def wrap_tabulate_tensor_code(test_name: str,
                               form_def: FormTestData,
                               cross_element_width: int = 1,
                               gcc_ext_enabled: bool = False) -> Tuple[str, str]:
-
     scalar_type = "double"
     if gcc_ext_enabled:
         replacement_args = [
@@ -122,7 +126,7 @@ def wrap_tabulate_tensor_code(test_name: str,
         ("{scalar_type}", scalar_type)
     ]
 
-    wrapped_code = utils.replace_strings(TEST_RUNNER_CODE, code_strs)
+    wrapped_code = replace_strings(TEST_RUNNER_CODE, code_strs)
     signature = TEST_RUNNER_SIGNATURE.replace("{test_runner_fun_name}", test_name)
 
     return wrapped_code, signature
