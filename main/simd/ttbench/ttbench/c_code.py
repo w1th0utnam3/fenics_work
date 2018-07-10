@@ -111,7 +111,7 @@ def wrap_tabulate_tensor_code(test_name: str,
             ("const double* restrict coordinate_dofs", "const double4* restrict coordinate_dofs"),
         ]
 
-        form_code = utils.replace_strings(form_code, replacement_args)
+        form_code = replace_strings(form_code, replacement_args)
         scalar_type = "double4"
 
     code_strs = [
