@@ -59,6 +59,7 @@ def main():
     subparsers.add_parser("generate", add_help=False)
     subparsers.add_parser("run", add_help=False)
     subparsers.add_parser("plot", add_help=False)
+    subparsers.add_parser("minidolfin")
 
     args, unknown_args = parser.parse_known_args()
 
@@ -80,6 +81,10 @@ def main():
         args = parse_args(unknown_args)
 
         example_plot(args.report_filename)
+    # Run minidolfin benchmark
+    elif args.command == "minidolfin":
+        from ttbench.minidolfin_bench import run_minidolfin_benchmark
+        run_minidolfin_benchmark()
     # Display help text if no subcommand was specified
     else:
         parser.print_help()
