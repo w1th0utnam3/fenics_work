@@ -114,12 +114,10 @@ def stokes_p2p1tet() -> Form:
 
 
 def maxwell_eigenvalue_form(element: FiniteElement) -> Form:
-    cell = element.cell()
-
     u = TrialFunction(element)
     v = TestFunction(element)
 
-    a = (inner(curl(u), curl(v)) - Constant(cell, 1) * inner(u, v)) * dx
+    a = (inner(curl(u), curl(v)) - inner(u, v)) * dx
 
     return a
 
