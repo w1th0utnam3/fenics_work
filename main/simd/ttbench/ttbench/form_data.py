@@ -83,6 +83,19 @@ def biharmonic_p2tet() -> FormTestData:
     )
 
 
+def hyperelasticity_energy_p2tet() -> FormTestData:
+    form_name = "hyperelasticity_energy_p2tet"
+
+    return FormTestData(
+        form_name=form_name,
+        form_code=get_form_code(form_name),
+        element_tensor_size=1,
+        coefficients=W3x12,
+        coord_dofs=DOF_4x3,
+        n_elems=int(np.floor(160 ** 3 / 4) * 4)
+    )
+
+
 def hyperelasticity_p1tet() -> FormTestData:
     form_name = "hyperelasticity_p1tet"
 
@@ -129,5 +142,7 @@ def get_all_forms() -> List[FormTestData]:
         laplace_p2tet_coefficient_p1tet(),
         biharmonic_p2tet(),
         hyperelasticity_p1tet(),
-        stokes_p2p1tet()
+        hyperelasticity_energy_p2tet(),
+        stokes_p2p1tet(),
+        maxwell_eigenvalue_nedelec3tet()
     ]

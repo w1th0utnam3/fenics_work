@@ -53,7 +53,7 @@ def biharmonic_p2tet() -> Form:
     return biharmonic_form(element)
 
 
-def hyperelasticity_form(element: VectorElement) -> Form:
+def hyperelasticity_form(element: VectorElement):
     cell = element.cell()
 
     # Coefficients
@@ -78,18 +78,26 @@ def hyperelasticity_form(element: VectorElement) -> Form:
 
     # Strain energy function (material model)
     psi = lmbda / 2 * (tr(E) ** 2) + mu * tr(E * E)
+    E_strain = psi*dx
 
     S = diff(psi, E)  # Second Piola-Kirchhoff stress tensor
     P = F * S  # First Piola-Kirchoff stress tensor
 
     # The variational problem corresponding to hyperelasticity
     L = inner(P, grad(v)) * dx - inner(B, v) * dx - inner(T, v) * ds
-    return derivative(L, u, du)
+    return E_strain, L, derivative(L, u, du)
+
+
+def hyperelasticity_energy_p2tet() -> Form:
+    element = VectorElement("Lagrange", tetrahedron, 2)
+    E_strain, L, a = hyperelasticity_form(element)
+    return E_strain
 
 
 def hyperelasticity_p1tet() -> Form:
     element = VectorElement("Lagrange", tetrahedron, 1)
-    return hyperelasticity_form(element)
+    E_strain, L, a = hyperelasticity_form(element)
+    return a
 
 
 def stokes_form(vector: VectorElement, scalar: FiniteElement) -> Form:
