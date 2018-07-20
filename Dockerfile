@@ -1,7 +1,7 @@
 # Dockerfile to build the ffcx simd dev env
 #
 
-FROM quay.io/w1th0utnam3/dolfinx:latest
+FROM quay.io/w1th0utnam3/dolfinx:fabian_batch-assembly
 
 WORKDIR /tmp
 
@@ -18,7 +18,10 @@ RUN pip3 install --no-cache-dir pyopencl psutil
 
 # Clone this repository
 WORKDIR /local
-RUN git clone --recurse-submodules https://github.com/w1th0utnam3/fenics_work.git
+RUN git clone --recurse-submodules https://github.com/w1th0utnam3/fenics_work.git && \
+	cd fenics_work && \
+	git fetch && \
+	git checkout batch-assembly
 
 # Install Loopy
 RUN pip3 install -e /local/fenics_work/main/loopy
