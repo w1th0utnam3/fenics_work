@@ -121,7 +121,7 @@ def stokes_p2p1tet() -> Form:
     return stokes_form(vector, scalar)
 
 
-def maxwell_eigenvalue_form(element: FiniteElement) -> Form:
+def curlcurl_form(element: FiniteElement) -> Form:
     u = TrialFunction(element)
     v = TestFunction(element)
 
@@ -130,6 +130,6 @@ def maxwell_eigenvalue_form(element: FiniteElement) -> Form:
     return a
 
 
-def maxwell_eigenvalue_nedelec3tet() -> Form:
+def curlcurl_nedelec3tet() -> Form:
     element = FiniteElement("Nedelec 1st kind H(curl)", tetrahedron, 3)
-    return maxwell_eigenvalue_form(element)
+    return curlcurl_form(element)

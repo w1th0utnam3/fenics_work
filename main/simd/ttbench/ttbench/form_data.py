@@ -122,8 +122,8 @@ def stokes_p2p1tet() -> FormTestData:
     )
 
 
-def maxwell_eigenvalue_nedelec3tet() -> FormTestData:
-    form_name = "maxwell_eigenvalue_nedelec3tet"
+def curlcurl_nedelec3tet() -> FormTestData:
+    form_name = "curlcurl_nedelec3tet"
 
     return FormTestData(
         form_name=form_name,
@@ -144,5 +144,5 @@ def get_all_forms() -> List[FormTestData]:
         hyperelasticity_p1tet(),
         hyperelasticity_energy_p2tet(),
         stokes_p2p1tet(),
-        maxwell_eigenvalue_nedelec3tet()
+        curlcurl_nedelec3tet()
     ]
