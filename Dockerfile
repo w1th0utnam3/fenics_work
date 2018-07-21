@@ -5,26 +5,12 @@ FROM quay.io/w1th0utnam3/dolfinx:fabian_batch-assembly
 
 WORKDIR /tmp
 
-# Install OpenCL loader
-RUN apt-get -qq update && \
-	apt-get -y --with-new-pkgs -o Dpkg::Options::="--force-confold" upgrade && \
-	apt-get -y install \
-	ocl-icd-opencl-dev && \
-	apt-get clean && \
-	rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-# Install PyOpenCL
-RUN pip3 install --no-cache-dir pyopencl psutil
-
 # Clone this repository
 WORKDIR /local
 RUN git clone --recurse-submodules https://github.com/w1th0utnam3/fenics_work.git && \
 	cd fenics_work && \
 	git fetch && \
 	git checkout batch-assembly
-
-# Install Loopy
-RUN pip3 install -e /local/fenics_work/main/loopy
 
 # Install FIAT, UFL, dijitso and ffcx
 RUN pip3 install -e /local/fenics_work/main/fiat && \
@@ -49,14 +35,7 @@ WORKDIR /tmp
 RUN pip3 install six singledispatch pulp networkx
 
 # Install packages for TSFC code generation
-RUN git clone https://github.com/firedrakeproject/tsfc.git && \
-	cd tsfc && \
-	git fetch && \
-	git checkout tsfc2loopy && \
-	pip3 install . && \
-	cd / && \
-	rm -rf /tmp/* /var/tmp/*
-
+RUN pip3 install --no-cache-dir git+https://github.com/firedrakeproject/tsfc.git
 RUN pip3 install --no-cache-dir git+https://github.com/coneoproject/COFFEE.git
 RUN pip3 install --no-cache-dir git+https://github.com/FInAT/FInAT.git
 
