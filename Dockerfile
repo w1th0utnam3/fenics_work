@@ -1,7 +1,7 @@
 # Dockerfile to build the ffcx simd dev env
 #
 
-FROM quay.io/w1th0utnam3/dolfinx:fabian_batch-assembly
+FROM quay.io/w1th0utnam3/docker-dolfinx-base:latest
 
 WORKDIR /tmp
 
