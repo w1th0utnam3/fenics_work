@@ -13,9 +13,6 @@
 [submodule "main/ffcx"]
 	path = main/ffcx
 	url = https://github.com/w1th0utnam3/ffcx
-[submodule "main/loopy"]
-	path = main/loopy
-	url = https://github.com/inducer/loopy.git
 [submodule "main/minidolfin"]
 	path = main/minidolfin
 	url = https://github.com/w1th0utnam3/minidolfin
