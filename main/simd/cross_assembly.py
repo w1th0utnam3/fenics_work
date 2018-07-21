@@ -1,15 +1,12 @@
 import dolfin
 import dolfin.cpp
-import dolfin.cpp.fem
 from dolfin import *
-from dolfin.la import PETScMatrix, PETScVector, PETScKrylovSolver
+from dolfin.la import PETScMatrix, PETScVector
 from dolfin.jit.jit import ffc_jit
 
-import numba as nb
 import numpy as np
 
 import sys
-import time
 
 # Generate a unit cube with (n+1)^3 vertices
 n = 22
@@ -45,7 +42,7 @@ L = dolfin.cpp.fem.Form(ufc_form, [Q._cpp_object])
 # Attach rhs expression as coefficient
 L.set_coefficient(0, f._cpp_object)
 
-assembler = dolfin.cpp.fem.Assembler([[a]], [L], [])
+assembler = dolfin.cpp.fem.Assembler([[a]], [L], [bc])
 
 A = PETScMatrix()
 b = PETScVector()
@@ -57,19 +54,19 @@ Anorm = A.norm(dolfin.cpp.la.Norm.frobenius)
 bnorm = b.norm(dolfin.cpp.la.Norm.l2)
 print(Anorm, bnorm)
 
-# Norms obtained with FFC and n=22 and bcs
-#assert (np.isclose(Anorm, 60.86192203436385))
-#assert (np.isclose(bnorm, 0.018075523965828778))
+# Norms obtained with n=22 and bcs
+assert (np.isclose(Anorm, 60.86192203436385))
+assert (np.isclose(bnorm, 0.018075523965828778))
 
-# Norms obtained with FFC and n=22 and no bcs
-assert (np.isclose(Anorm, 29.416127208482518))
-assert (np.isclose(bnorm, 0.018726593629987284))
+# Norms obtained with n=22 and no bcs
+#assert (np.isclose(Anorm, 29.416127208482518))
+#assert (np.isclose(bnorm, 0.018726593629987284))
 
-sys.exit(0)
-
+"""
 comm = L.mesh().mpi_comm()
 solver = PETScKrylovSolver(comm)
 
 u = Function(Q)
 solver.set_operator(A)
 solver.solve(u.vector(), b)
+"""
