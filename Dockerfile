@@ -17,15 +17,7 @@ RUN pip3 install -e /local/fenics_work/main/fiat && \
 	pip3 install -e /local/fenics_work/main/ufl && \
 	pip3 install -e /local/fenics_work/main/dijitso && \
 	pip3 install -e /local/fenics_work/main/ffcx
-
-# Build and install dolfinx
-RUN cd /local/fenics_work/main/dolfinx && \
-	mkdir build && \
-	cd build && \
-	cmake ../cpp && \
-	make -j8 && \
-	make install
-
+	
 # Install dolfinx python package
 RUN pip3 install -e /local/fenics_work/main/dolfinx/python
 
