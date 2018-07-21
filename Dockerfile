@@ -3,14 +3,12 @@
 
 FROM quay.io/w1th0utnam3/docker-dolfinx-base:latest
 
-WORKDIR /tmp
-
 # Clone this repository
 WORKDIR /local
 RUN git clone --recurse-submodules https://github.com/w1th0utnam3/fenics_work.git && \
 	cd fenics_work && \
 	git fetch && \
-	git checkout batch-assembly
+	git checkout --recurse-submodules batch-assembly
 
 # Install FIAT, UFL, dijitso and ffcx
 RUN pip3 install -e /local/fenics_work/main/fiat && \
