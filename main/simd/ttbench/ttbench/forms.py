@@ -121,6 +121,29 @@ def stokes_p2p1tet() -> Form:
     return stokes_form(vector, scalar)
 
 
+def nearly_incompressible_stokes_form(vector: VectorElement, scalar: FiniteElement) -> Form:
+    system = vector * scalar
+    cell = system.cell()
+
+    (u, p) = TrialFunctions(system)
+    (v, q) = TestFunctions(system)
+
+    f = Coefficient(vector)
+    delta = Constant(cell)
+
+    a = (inner(grad(u), grad(v)) + p*div(v) + q*div(u) - delta*p*q)*dx
+    L = dot(f, v) * dx
+
+    return a
+
+
+def nearly_incompressible_stokes_p2p1tet() -> Form:
+    cell = tetrahedron
+    vector = VectorElement("Lagrange", cell, 2)
+    scalar = FiniteElement("Lagrange", cell, 1)
+    return nearly_incompressible_stokes_form(vector, scalar)
+
+
 def curlcurl_form(element: FiniteElement) -> Form:
     u = TrialFunction(element)
     v = TestFunction(element)

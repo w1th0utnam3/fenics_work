@@ -122,6 +122,19 @@ def stokes_p2p1tet() -> FormTestData:
     )
 
 
+def nearly_incompressible_stokes_p2p1tet() -> FormTestData:
+    form_name = "nearly_incompressible_stokes_p2p1tet"
+
+    return FormTestData(
+        form_name=form_name,
+        form_code=get_form_code(form_name),
+        element_tensor_size=1156,
+        coefficients=W1,
+        coord_dofs=DOF_4x3,
+        n_elems=int(np.floor(120 ** 3 / 4) * 4)
+    )
+
+
 def curlcurl_nedelec3tet() -> FormTestData:
     form_name = "curlcurl_nedelec3tet"
 
@@ -144,5 +157,6 @@ def get_all_forms() -> List[FormTestData]:
         hyperelasticity_p1tet(),
         hyperelasticity_energy_p2tet(),
         stokes_p2p1tet(),
+        nearly_incompressible_stokes_p2p1tet(),
         curlcurl_nedelec3tet()
     ]
