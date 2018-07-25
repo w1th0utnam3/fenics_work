@@ -3,6 +3,9 @@
 
 FROM quay.io/w1th0utnam3/docker-dolfinx-base:latest
 
+# Install other dependencies
+RUN pip3 install cffi
+
 # Clone this repository
 WORKDIR /local
 RUN git clone --recurse-submodules https://github.com/w1th0utnam3/fenics_work.git && \
