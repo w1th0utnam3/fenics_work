@@ -95,7 +95,7 @@ def generate_benchmark_code(test_case: TestCase) -> Tuple[Dict[str, List[Tuple[s
         ffc_arg_set = copy(run_arg_set.ffc_args)
         cross_element_width = run_arg_set.cross_element_width
         if cross_element_width > 0:
-            ffc_arg_set["cross_element_width"] = cross_element_width
+            ffc_arg_set["cell_batch_size"] = cross_element_width
         else:
             cross_element_width = 1
 
