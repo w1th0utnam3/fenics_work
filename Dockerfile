@@ -8,10 +8,7 @@ RUN pip3 install cffi
 
 # Clone this repository
 WORKDIR /local
-RUN git clone --recurse-submodules https://github.com/w1th0utnam3/fenics_work.git && \
-	cd fenics_work && \
-	git fetch && \
-	git checkout --recurse-submodules batch-assembly
+RUN git clone --recurse-submodules -b batch-assembly https://github.com/w1th0utnam3/fenics_work.git
 
 # Install FIAT, UFL, dijitso and ffcx
 RUN pip3 install -e /local/fenics_work/main/fiat && \
