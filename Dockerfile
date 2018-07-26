@@ -4,7 +4,7 @@
 FROM quay.io/w1th0utnam3/docker-dolfinx-base:latest
 
 # Install other dependencies
-RUN pip3 install cffi
+RUN pip3 install cffi pytest
 
 # Clone this repository
 WORKDIR /local
