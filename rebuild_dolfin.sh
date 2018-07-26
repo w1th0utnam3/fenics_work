@@ -7,7 +7,7 @@ rm -rf /local/fenics_work/main/dolfinx/python/fenics_dolfin.egg-info
 cd /local/fenics_work/main/dolfinx && \
 	mkdir build && \
 	cd build && \
-	cmake ../cpp && \
+	cmake -DCMAKE_BUILD_TYPE=Developer ../cpp && \
 	make -j8 && \
 	make install
 
