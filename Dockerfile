@@ -23,7 +23,7 @@ RUN pip3 install -e /local/fenics_work/main/fiat && \
 RUN cd /local/fenics_work/main/dolfinx && \
 	mkdir build && \
 	cd build && \
-	cmake ../cpp && \
+	cmake -DCMAKE_BUILD_TYPE=Developer ../cpp && \
 	make -j8 && \
 	make install
 
