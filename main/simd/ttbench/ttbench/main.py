@@ -1,6 +1,5 @@
 import argparse
 
-import ttbench.run as run
 import ttbench.config as config
 import ttbench.io as io
 
@@ -21,6 +20,7 @@ def example_generate(data_filename: str):
 
 def example_run(data_filename: str, report_filename: str):
     """Loads example benchmark data and runs it."""
+    import ttbench.run as run
 
     test_case, test_fun_names, codes = io.load_generated_data(data_filename)
 

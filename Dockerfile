@@ -1,27 +1,14 @@
 # Dockerfile to build the ffcx simd dev env
 #
 
-FROM quay.io/w1th0utnam3/dolfinx:latest
+FROM quay.io/w1th0utnam3/docker-dolfinx-base:latest
 
-WORKDIR /tmp
-
-# Install OpenCL loader
-RUN apt-get -qq update && \
-	apt-get -y --with-new-pkgs -o Dpkg::Options::="--force-confold" upgrade && \
-	apt-get -y install \
-	ocl-icd-opencl-dev && \
-	apt-get clean && \
-	rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-# Install PyOpenCL
-RUN pip3 install --no-cache-dir pyopencl psutil
+# Install other dependencies
+RUN pip3 install cffi pytest
 
 # Clone this repository
 WORKDIR /local
-RUN git clone --recurse-submodules https://github.com/w1th0utnam3/fenics_work.git
-
-# Install Loopy
-RUN pip3 install -e /local/fenics_work/main/loopy
+RUN git clone --recurse-submodules -b batch-assembly https://github.com/w1th0utnam3/fenics_work.git
 
 # Install FIAT, UFL, dijitso and ffcx
 RUN pip3 install -e /local/fenics_work/main/fiat && \
@@ -33,7 +20,7 @@ RUN pip3 install -e /local/fenics_work/main/fiat && \
 RUN cd /local/fenics_work/main/dolfinx && \
 	mkdir build && \
 	cd build && \
-	cmake ../cpp && \
+	cmake -DCMAKE_BUILD_TYPE=Developer ../cpp && \
 	make -j8 && \
 	make install
 
@@ -46,14 +33,7 @@ WORKDIR /tmp
 RUN pip3 install six singledispatch pulp networkx
 
 # Install packages for TSFC code generation
-RUN git clone https://github.com/firedrakeproject/tsfc.git && \
-	cd tsfc && \
-	git fetch && \
-	git checkout tsfc2loopy && \
-	pip3 install . && \
-	cd / && \
-	rm -rf /tmp/* /var/tmp/*
-
+RUN pip3 install --no-cache-dir git+https://github.com/firedrakeproject/tsfc.git
 RUN pip3 install --no-cache-dir git+https://github.com/coneoproject/COFFEE.git
 RUN pip3 install --no-cache-dir git+https://github.com/FInAT/FInAT.git
 

@@ -25,6 +25,16 @@ def gen_test_case() -> TestCase:
         "-mtune=skylake": True,
     }
 
+    msvc_default = {
+        "/O2": True,
+        "/arch:AVX2": False
+    }
+
+    msvc_vectorize = {
+        "/O2": True,
+        "/arch:AVX2": True
+    }
+
     # Default FFC parameters
     ffc_default = {"optimize": True}
     # FFC with padding enabled
@@ -33,7 +43,13 @@ def gen_test_case() -> TestCase:
     one_element = TestRunParameters(
         name="ffc default",
         cross_element_width=0,
-        ffc_args=ffc_default
+        ffc_args={"optimize": True}
+    )
+
+    one_element_no_unroll = TestRunParameters(
+        name="ffc nounroll",
+        cross_element_width=0,
+        ffc_args = {"optimize": True, "max_preintegrated_unrolled_table_size": 1}
     )
 
     one_element_padded = TestRunParameters(
@@ -52,6 +68,12 @@ def gen_test_case() -> TestCase:
         name="4x ce, gcc exts",
         cross_element_width=4,
         ffc_args={"optimize": True, "enable_cross_element_gcc_ext": True}
+    )
+
+    four_elements_gcc_exts_no_unroll = TestRunParameters(
+        name="4x ce, gcc exts, no unroll",
+        cross_element_width=4,
+        ffc_args={"optimize": True, "enable_cross_element_gcc_ext": True, "max_preintegrated_unrolled_table_size": 1}
     )
 
     four_elements_to_scalars = TestRunParameters(
@@ -74,19 +96,20 @@ def gen_test_case() -> TestCase:
         ],
         run_args=[
             one_element,
-            one_element_padded,
-            four_elements,
+            #one_element_no_unroll,
+            #four_elements,
             four_elements_gcc_exts,
+            four_elements_gcc_exts_no_unroll,
             #four_elements_to_scalars,
             #four_elements_to_scalars_fused
         ],
         forms=form_data.get_all_forms(),
-        #forms=[form_data.laplace_p2tet_coefficient_p1tet()],
         reference_case=(0, 0),
         n_repeats=3
     )
 
     # Optional defines when using ICC
+    """
     test_case.compiler_defines = [
         ("__PURE_INTEL_C99_HEADERS__", ""),
         ("_Float32", "float"),
@@ -95,6 +118,7 @@ def gen_test_case() -> TestCase:
         ("_Float32x", "double"),
         ("_Float64x", "long double")
     ]
+    """
 
     return test_case
 
@@ -103,8 +127,7 @@ def plot_params_single_file(test_case: TestCase, report: BenchmarkReport):
     compile_args = ["gcc default", "gcc + vec flags"]
 
     combinations_to_plot = [
-        (0, 1),
-        (0, 2),
+        (1, 1)
     ]
 
     reference_ind = (0, 0)

@@ -1,0 +1,38 @@
+{
+   <py_cond>
+   Memcheck:Cond
+   obj:/usr/bin/python3.6
+   ...
+}
+{
+   <py_val>
+   Memcheck:Value8
+   obj:/usr/bin/python3.6
+   ...
+}
+{
+   <py_addr>
+   Memcheck:Addr4
+   obj:/usr/bin/python3.6
+   ...
+}
+{
+   <internal_ascii>
+   Memcheck:Cond
+   fun:internal_ascii_loop
+   ...
+}
+{
+   <ffi_cond>
+   Memcheck:Cond
+   ...
+   fun:ffi_call
+   ...
+}
+{
+   <ffi_val>
+   Memcheck:Value8
+   ...
+   fun:ffi_call
+   ...
+}
