@@ -4,6 +4,7 @@ import inspect
 import subprocess
 import shutil
 
+
 def check(source_dir: str):
     '''Checks whether all required packages are installed and installs them if necessary.'''
     print("Checking whether required packages are installed...")
@@ -15,8 +16,7 @@ def check(source_dir: str):
                      ("fenics-fiat", "fiat"),
                      ("fenics-dijitso", "dijitso"),
                      ("fenics-ffc", "ffcx"),
-                     ("fenics-dolfin", "dolfinx/python"),
-                     ("loo.py", "loopy")]
+                     ("fenics-dolfin", "dolfinx/python")]
 
     packages = subprocess.check_output(["pip3", "list"]).decode('utf-8')
     #print(packages)
@@ -56,7 +56,6 @@ def clean(source_dir: str):
                "dijitso/fenics_dijitso.egg-info",
                "ffcx/fenics_ffc.egg-info",
                "fiat/fenics_fiat.egg-info",
-               "loopy/loo.py.egg-info",
                "ufl/fenics_ufl.egg-info"]
 
     for folder in folders:
