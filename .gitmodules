@@ -12,9 +12,9 @@
 	branch = master
 [submodule "submodules/ffcx"]
 	path = submodules/ffcx
-	url = git@github.com:FEniCS/ffcx.git
+	url = https://github.com/FEniCS/ffcx.git
 	branch = fabian/gcc-vec-ext
 [submodule "submodules/dolfinx"]
 	path = submodules/dolfinx
-	url = git@github.com:FEniCS/dolfinx.git
+	url = https://github.com/FEniCS/dolfinx.git
 	branch = fabian/batch-assembly
