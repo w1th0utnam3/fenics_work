@@ -10,9 +10,11 @@
 [submodule "main/dolfinx"]
 	path = main/dolfinx
 	url = https://github.com/FEniCS/dolfinx.git
+	branch = fabian/batch-assembly
 [submodule "main/ffcx"]
 	path = main/ffcx
 	url = https://github.com/FEniCS/ffcx.git
+	branch = fabian/gcc-vec-ext
 [submodule "main/minidolfin"]
 	path = main/minidolfin
 	url = https://github.com/w1th0utnam3/minidolfin
