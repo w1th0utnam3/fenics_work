@@ -1,0 +1,20 @@
+[submodule "submodules/dijitso"]
+	path = submodules/dijitso
+	url = https://bitbucket.org/fenics-project/dijitso.git
+	branch = master
+[submodule "submodules/ufl"]
+	path = submodules/ufl
+	url = https://bitbucket.org/fenics-project/ufl.git
+	branch = master
+[submodule "submodules/fiat"]
+	path = submodules/fiat
+	url = https://bitbucket.org/fenics-project/fiat.git
+	branch = master
+[submodule "submodules/ffcx"]
+	path = submodules/ffcx
+	url = git@github.com:FEniCS/ffcx.git
+	branch = fabian/gcc-vec-ext
+[submodule "submodules/dolfinx"]
+	path = submodules/dolfinx
+	url = git@github.com:FEniCS/dolfinx.git
+	branch = fabian/batch-assembly
