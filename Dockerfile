@@ -8,7 +8,7 @@ RUN pip3 install cffi pytest
 
 # Clone this repository
 WORKDIR /local
-RUN git clone --recurse-submodules -b batch-assembly https://github.com/w1th0utnam3/fenics_work.git
+RUN git clone --recurse-submodules https://github.com/w1th0utnam3/fenics_work.git
 
 # Install FIAT, UFL, dijitso and ffcx
 RUN pip3 install -e /local/fenics_work/main/fiat && \
