@@ -18,3 +18,7 @@
 	path = submodules/dolfinx
 	url = https://github.com/FEniCS/dolfinx.git
 	branch = fabian/batch-assembly
+[submodule "submodules/minidolfin"]
+	path = submodules/minidolfin
+	url = https://github.com/blechta/minidolfin.git
+	branch = master
