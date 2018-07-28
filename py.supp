@@ -36,3 +36,17 @@
    fun:ffi_call
    ...
 }
+{
+   <destroy_shared_ptr>
+   Memcheck:Free
+   ...
+   fun:~shared_ptr
+   ...
+}
+{
+   <destroy_unique_ptr>
+   Memcheck:Free
+   ...
+   fun:~unique_ptr
+   ...
+}
