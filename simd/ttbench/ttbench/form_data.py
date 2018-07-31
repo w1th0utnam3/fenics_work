@@ -158,5 +158,5 @@ def get_all_forms() -> List[FormTestData]:
         hyperelasticity_energy_p2tet(),
         stokes_p2p1tet(),
         nearly_incompressible_stokes_p2p1tet(),
-        curlcurl_nedelec3tet()
+        # curlcurl_nedelec3tet()
     ]
