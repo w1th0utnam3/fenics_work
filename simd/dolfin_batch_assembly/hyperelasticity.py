@@ -12,8 +12,10 @@ import time
 
 def assemble_test(cell_batch_size: int):
     mesh = dolfin.UnitCubeMesh(MPI.comm_world, 60, 60, 60)
-    vec_element = dolfin.VectorElement("Lagrange", ufl.tetrahedron, 1)
-    # scl_element = dolfin.FiniteElement("Lagrange", ufl.tetrahedron, 1)
+    cell = mesh.ufl_cell()
+
+    vec_element = dolfin.VectorElement("Lagrange", cell, 1)
+    # scl_element = dolfin.FiniteElement("Lagrange", cell, 1)
 
     Q = dolfin.FunctionSpace(mesh, vec_element)
     # Qs = dolfin.FunctionSpace(mesh, scl_element)
@@ -23,8 +25,8 @@ def assemble_test(cell_batch_size: int):
     du = dolfin.function.argument.TrialFunction(Q)  # Incremental displacement
     u = dolfin.Function(Q)  # Displacement from previous iteration
 
-    B = dolfin.Constant((0.0, -0.5, 0.0), ufl.tetrahedron)  # Body force per unit volume
-    T = dolfin.Constant((0.1, 0.0, 0.0), ufl.tetrahedron)  # Traction force on the boundary
+    B = dolfin.Constant((0.0, -0.5, 0.0), cell)  # Body force per unit volume
+    T = dolfin.Constant((0.1, 0.0, 0.0), cell)  # Traction force on the boundary
 
     # B, T = dolfin.Function(Q), dolfin.Function(Q)
 
@@ -39,8 +41,8 @@ def assemble_test(cell_batch_size: int):
 
     # Elasticity parameters
     E, nu = 10.0, 0.3
-    mu = dolfin.Constant(E / (2 * (1 + nu)), ufl.tetrahedron)
-    lmbda = dolfin.Constant(E * nu / ((1 + nu) * (1 - 2 * nu)), ufl.tetrahedron)
+    mu = dolfin.Constant(E / (2 * (1 + nu)), cell)
+    lmbda = dolfin.Constant(E * nu / ((1 + nu) * (1 - 2 * nu)), cell)
 
     # mu, lmbda = dolfin.Function(Qs), dolfin.Function(Qs)
 
