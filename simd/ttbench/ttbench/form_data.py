@@ -9,6 +9,7 @@ W3 = np.linspace(1, 2, num=3, dtype=np.double)[np.newaxis, :]
 W4 = np.linspace(1, 2, num=4, dtype=np.double)[np.newaxis, :]
 W12 = np.linspace(1, 2, num=12, dtype=np.double)[np.newaxis, :]
 W3x12 = np.repeat(W12, 3, axis=0)
+W12x12 = np.repeat(W12, 12, axis=0)
 
 DOF_3x2 = np.asarray([
     [0.0, 0.0],
@@ -106,6 +107,19 @@ def hyperelasticity_p1tet() -> FormTestData:
         coefficients=W3x12,
         coord_dofs=DOF_4x3,
         n_elems=int(np.floor(160 ** 3 / 4) * 4)
+    )
+
+
+def holzapfel_p1tet() -> FormTestData:
+    form_name = "holzapfel_p1tet"
+
+    return FormTestData(
+        form_name=form_name,
+        form_code=get_form_code(form_name),
+        element_tensor_size=144,
+        coefficients=W12x12,
+        coord_dofs=DOF_4x3,
+        n_elems=int(np.floor(80 ** 3 / 4) * 4)
     )
 
 

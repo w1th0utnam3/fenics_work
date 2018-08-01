@@ -100,6 +100,80 @@ def hyperelasticity_p1tet() -> Form:
     return a
 
 
+def holzapfel_form(vector: VectorElement, scalar: FiniteElement) -> Form:
+    cell = vector.cell()
+
+    v = TestFunction(vector)  # Test function
+    du = TrialFunction(vector)  # Incremental displacement
+    u = Coefficient(vector)  # Displacement from previous iteration
+
+    def isochoric(F):
+        C = F.T * F
+
+        I_1 = tr(C)
+        I4_f = dot(e_f, C * e_f)
+        I4_s = dot(e_s, C * e_s)
+        I8_fs = dot(e_f, C * e_s)
+
+        def cutoff(x):
+            return 1.0 / (1.0 + exp(-(x - 1.0) * 30.0))
+
+        def scaled_exp(a0, a1, argument):
+            return a0 / (2.0 * a1) * (exp(b * argument) - 1)
+
+        E_1 = scaled_exp(a, b, I_1 - 3.)
+
+        E_f = cutoff(I4_f) * scaled_exp(a_f, b_f, (I4_f - 1.) ** 2)
+        E_s = cutoff(I4_s) * scaled_exp(a_s, b_s, (I4_s - 1.) ** 2)
+        E_3 = scaled_exp(a_fs, b_fs, I8_fs ** 2)
+
+        E = E_1 + E_f + E_s + E_3
+        return E
+
+    lmbda = Constant(cell)
+    a = Constant(cell)
+    b = Constant(cell)
+    a_s = Constant(cell)
+    b_s = Constant(cell)
+    a_f = Constant(cell)
+    b_f = Constant(cell)
+    a_fs = Constant(cell)
+    b_fs = Constant(cell)
+
+    # For more fun, make these general vector fields rather than
+    # constants:
+    e_s = VectorConstant(cell)
+    e_f = VectorConstant(cell)
+
+    # Misc elasticity related tensors and other quantities
+    F = grad(u) + Identity(3)
+    F = variable(F)
+    J = det(F)
+    Fbar = J ** (-1.0 / 3.0) * F
+
+    # Define energy
+    E_volumetric = lmbda * 0.5 * ln(J) ** 2
+    psi = isochoric(Fbar) + E_volumetric
+
+    # Find first Piola-Kircchoff tensor
+    P = diff(psi, F)
+
+    # Define the variational formulation
+    F = inner(P, grad(v)) * dx
+
+    # Take the derivative
+    J = derivative(F, u, du)
+
+    return J
+
+
+def holzapfel_p1tet():
+    cell = tetrahedron
+    vector = VectorElement("Lagrange", cell, 1)
+    scalar = FiniteElement("Lagrange", cell, 1)
+    return holzapfel_form(vector, scalar)
+
+
 def stokes_form(vector: VectorElement, scalar: FiniteElement) -> Form:
     system = vector * scalar
 
