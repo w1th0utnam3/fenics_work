@@ -18,7 +18,7 @@ RUN cd /local/fenics_work/submodules/dolfinx && \
 	mkdir build && \
 	cd build && \
 	cmake -G Ninja -DCMAKE_BUILD_TYPE=Developer ../cpp && \
-	ninja -j8 install
+	ninja -j3 install
 
 # Install dolfinx python package
 RUN pip3 install -e /local/fenics_work/submodules/dolfinx/python
