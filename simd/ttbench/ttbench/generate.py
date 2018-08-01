@@ -1,10 +1,12 @@
 import ufl
 import ffc.compiler
+from ffc.fiatinterface import create_element
 
 import sys
 import argparse
 from copy import copy
 from typing import Dict, List, Tuple
+import numpy as np
 
 from ttbench.types import TestCase, FormTestData, TestRunParameters
 from ttbench.c_code import wrap_tabulate_tensor_code, join_test_wrappers
@@ -68,6 +70,56 @@ def eval_with_globals(expr: str, globals_def: str, globals_cache: Dict):
     return eval(expr, copy(namespace))
 
 
+def compute_shapes(form: ufl.Form):
+    """Computes the shapes of the cell tensor, coefficient & coordinate arrays for a form"""
+
+    # Cell tensor
+    elements = tuple(arg.ufl_element() for arg in form.arguments())
+    fiat_elements = (create_element(element) for element in elements)
+    element_dims = tuple(fe.space_dimension() for fe in fiat_elements)
+    A_shape = element_dims
+
+    # Coefficient arrays
+    ws_shapes = []
+    for coefficient in form.coefficients():
+        w_element = coefficient.ufl_element()
+        w_dim = create_element(w_element).space_dimension()
+        ws_shapes.append((w_dim,))
+    max_w_dim = sorted(ws_shapes, key=lambda w_dim: np.prod(w_dim))[-1]
+    w_full_shape = (len(ws_shapes), ) + max_w_dim
+
+    # Coordinate dofs array
+    num_vertices_per_cell = form.ufl_cell().num_vertices()
+    gdim = form.ufl_cell().geometric_dimension()
+    coords_shape = (num_vertices_per_cell, gdim)
+
+    return A_shape, w_full_shape, coords_shape
+
+
+def check_shapes(form: ufl.Form, form_def: FormTestData) -> bool:
+    """Checks whether shapes from form_def match the actual shapes required by the UFL form"""
+
+    A_shape, w_full_shape, coords_shape = compute_shapes(form)
+    if form_def.element_tensor_size != np.prod(A_shape):
+        raise RuntimeError("Element tensor size of form '{}' defined in form_data ({}) does not correspond to "
+                           "actual size of element tensor ({})!"
+                           "".format(form_def.form_name, form_def.element_tensor_size, np.prod(A_shape)))
+
+    if np.prod(form_def.coefficients.shape) != np.prod(w_full_shape):
+        raise RuntimeError("Coefficient array size of form '{}' defined in form_data ({}->{}) "
+                           "does not correspond to actual size of the coefficient array ({}->{})!"
+                           "".format(form_def.form_name, form_def.coefficients.shape,
+                                     np.prod(form_def.coefficients.shape), w_full_shape, np.prod(w_full_shape)))
+
+    if np.prod(form_def.coord_dofs.shape) != np.prod(coords_shape):
+        raise RuntimeError("Coordinate array size of form '{}' defined in form_data ({}->{}) "
+                           "does not correspond to actual size of the coordinate array ({}->{})!"
+                           "".format(form_def.form_name, form_def.coord_dofs.shape,
+                                     np.prod(form_def.coord_dofs.shape), coords_shape, np.prod(coords_shape)))
+
+    return True
+
+
 def generate_benchmark_code(test_case: TestCase) -> Tuple[Dict[str, List[Tuple[str, int]]], List[Tuple[str, str]]]:
     """
     Generates code for a TestCase.
@@ -85,7 +137,9 @@ def generate_benchmark_code(test_case: TestCase) -> Tuple[Dict[str, List[Tuple[s
     # Generate the UFL forms from their sources (independent of test parameter sets)
     for form_def in test_case.forms:  # type: FormTestData
         form_expr, form_env = form_def.form_code
-        forms[form_def.form_name] = eval_with_globals(form_expr, form_env, form_env_cache)
+        form = eval_with_globals(form_expr, form_env, form_env_cache)
+        check_shapes(form, form_def)
+        forms[form_def.form_name] = form
 
     # Dict storing generated data (C code, wrapper function names, etc.) for the forms
     test_functions = {form_def.form_name: [] for form_def in test_case.forms}
