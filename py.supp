@@ -23,20 +23,6 @@
    ...
 }
 {
-   <ffi_cond>
-   Memcheck:Cond
-   ...
-   fun:ffi_call
-   ...
-}
-{
-   <ffi_val>
-   Memcheck:Value8
-   ...
-   fun:ffi_call
-   ...
-}
-{
    <destroy_shared_ptr>
    Memcheck:Free
    ...

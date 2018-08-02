@@ -4,6 +4,7 @@ import ttbench.config as config
 import ttbench.io as io
 
 
+# TODO: remove arrays and shapes from FormTestData (can be calculated using FIAT)
 # TODO: remove speedup calculation before plotting?
 # TODO: add name for compile parameter set during test case definition
 # TODO: proper configuration of plotting

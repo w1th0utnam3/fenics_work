@@ -5,13 +5,13 @@ import dolfin.fem.assembling
 from dolfin import MPI
 
 import ufl
-from ufl import inner, dot, grad, dx, ds, tr, det, ln
+from ufl import inner, dot, grad, dx, tr, det, ln
 
 import time
 
 
 def assemble_test(cell_batch_size: int):
-    mesh = dolfin.UnitCubeMesh(MPI.comm_world, 2, 2, 2)
+    mesh = dolfin.UnitCubeMesh(MPI.comm_world, 40, 40, 40)
 
     def isochoric(F):
         C = F.T*F

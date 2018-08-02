@@ -119,7 +119,7 @@ def holzapfel_p1tet() -> FormTestData:
         element_tensor_size=144,
         coefficients=W12x12,
         coord_dofs=DOF_4x3,
-        n_elems=int(np.floor(80 ** 3 / 4) * 4)
+        n_elems=int(np.floor(70 ** 3 / 4) * 4)
     )
 
 
