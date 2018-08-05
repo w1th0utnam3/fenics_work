@@ -10,8 +10,8 @@ from ufl import dot, grad, dx, ds, tr, det, ln
 import time
 
 
-def assemble_test(cell_batch_size: int):
-    mesh = dolfin.UnitCubeMesh(MPI.comm_world, 60, 60, 60)
+def problem():
+    mesh = dolfin.UnitCubeMesh(MPI.comm_world, 70, 70, 70)
     cell = mesh.ufl_cell()
 
     vec_element = dolfin.VectorElement("Lagrange", cell, 1)
@@ -58,8 +58,10 @@ def assemble_test(cell_batch_size: int):
     # Compute Jacobian of F
     J = ufl.derivative(F, u, du)
 
-    a, L = J, F
+    return J, F
 
+
+def assemble_test(a, L, cell_batch_size: int):
     if cell_batch_size > 1:
         cxx_flags = "-O2 -ftree-vectorize -funroll-loops -march=native -mtune=native"
     else:
@@ -71,17 +73,18 @@ def assemble_test(cell_batch_size: int):
                                                                           "cpp_optimize_flags": cxx_flags})
 
     t = -time.time()
-    A, b = assembler.assemble(
-        mat_type=dolfin.cpp.fem.Assembler.BlockType.monolithic)
+    A, b = assembler.assemble(mat_type=dolfin.cpp.fem.Assembler.BlockType.monolithic)
     t += time.time()
 
     return A, b, t
 
 
-A1, b1, t1 = assemble_test(cell_batch_size=1)
+a, L = problem()
+
+A1, b1, t1 = assemble_test(a, L, cell_batch_size=1)
 print("{:.4f}s".format(t1))
 
-A4, b4, t4 = assemble_test(cell_batch_size=4)
+A4, b4, t4 = assemble_test(a, L, cell_batch_size=4)
 print("{:.4f}s".format(t4))
 print("")
 
