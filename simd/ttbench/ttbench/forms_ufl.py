@@ -8,7 +8,7 @@ def laplace_form(element: FiniteElement, coeff_element: FiniteElement = None) ->
         return inner(grad(u), grad(v)) * dx
     else:
         c = Coefficient(coeff_element)
-        return c * inner(grad(u), grad(v)) * dx
+        return inner(c * grad(u), grad(v)) * dx
 
 
 def laplace_p2tet_coefficient_p1tet() -> Form:

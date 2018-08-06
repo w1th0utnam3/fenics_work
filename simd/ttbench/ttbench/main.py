@@ -61,6 +61,7 @@ def main():
     subparsers.add_parser("run", add_help=False)
     subparsers.add_parser("plot", add_help=False)
     subparsers.add_parser("minidolfin")
+    subparsers.add_parser("assembly")
 
     args, unknown_args = parser.parse_known_args()
 
@@ -86,6 +87,10 @@ def main():
     elif args.command == "minidolfin":
         from ttbench.minidolfin_bench import run_minidolfin_benchmark
         run_minidolfin_benchmark()
+    # Run assembly benchmark
+    elif args.command == "assembly":
+        from ttbench.assembly_bench import run_assembly_bench
+        run_assembly_bench()
     # Display help text if no subcommand was specified
     else:
         parser.print_help()

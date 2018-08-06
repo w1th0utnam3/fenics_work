@@ -26,8 +26,8 @@ DOF_4x3 = np.asarray([
 
 
 def get_form_code(form_name: str) -> Tuple[str, str]:
-    import ttbench.forms
-    form_env = inspect.getsource(ttbench.forms)
+    import ttbench.forms_ufl
+    form_env = inspect.getsource(ttbench.forms_ufl)
     form_expr = "{}()".format(form_name)
     return form_expr, form_env
 

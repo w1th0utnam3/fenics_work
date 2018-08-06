@@ -11,7 +11,7 @@ import time
 
 
 def problem():
-    mesh = dolfin.UnitCubeMesh(MPI.comm_world, 70, 70, 70)
+    mesh = dolfin.UnitCubeMesh(MPI.comm_world, 10, 10, 10)
     cell = mesh.ufl_cell()
 
     vec_element = dolfin.VectorElement("Lagrange", cell, 1)
