@@ -37,7 +37,7 @@ def assemble_test(cell_batch_size: int):
         # Create assembler
         assembler = dolfin.fem.assembling.Assembler([[a]], [L], [bc],
                                                     form_compiler_parameters={"cell_batch_size": cell_batch_size,
-                                                                              "enable_cross_element_gcc_ext": True,
+                                                                              "enable_cross_cell_gcc_ext": True,
                                                                               "cpp_optimize_flags": cxx_flags})
 
         A, b = assembler.assemble(mat_type=dolfin.cpp.fem.Assembler.BlockType.monolithic)

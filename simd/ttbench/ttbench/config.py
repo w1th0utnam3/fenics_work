@@ -67,13 +67,13 @@ def gen_test_case() -> TestCase:
     four_elements_gcc_exts = TestRunParameters(
         name="4x ce, gcc exts",
         cross_element_width=4,
-        ffc_args={"optimize": True, "enable_cross_element_gcc_ext": True}
+        ffc_args={"optimize": True, "enable_cross_cell_gcc_ext": True}
     )
 
     four_elements_gcc_exts_no_unroll = TestRunParameters(
         name="4x ce, gcc exts, no unroll",
         cross_element_width=4,
-        ffc_args={"optimize": True, "enable_cross_element_gcc_ext": True, "max_preintegrated_unrolled_table_size": 1}
+        ffc_args={"optimize": True, "enable_cross_cell_gcc_ext": True, "max_preintegrated_unrolled_table_size": 1}
     )
 
     four_elements_to_scalars = TestRunParameters(
@@ -99,7 +99,7 @@ def gen_test_case() -> TestCase:
             #one_element_no_unroll,
             #four_elements,
             four_elements_gcc_exts,
-            four_elements_gcc_exts_no_unroll,
+            #four_elements_gcc_exts_no_unroll,
             #four_elements_to_scalars,
             #four_elements_to_scalars_fused
         ],

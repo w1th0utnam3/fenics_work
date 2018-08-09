@@ -161,7 +161,7 @@ def generate_benchmark_code(test_case: TestCase) -> Tuple[Dict[str, List[Tuple[s
             raw_function_name, raw_code = compile_form(form, form_def.form_name + "_" + str(j),
                                                        extra_ffc_args=ffc_arg_set)
 
-            gcc_ext_enabled = run_arg_set.ffc_args.get("enable_cross_element_gcc_ext", False)
+            gcc_ext_enabled = run_arg_set.ffc_args.get("enable_cross_cell_gcc_ext", False)
 
             # Wrap tabulate_tensor code in test runner function
             wrapper_function_name = "_test_runner_" + raw_function_name

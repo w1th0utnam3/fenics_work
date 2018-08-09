@@ -31,14 +31,14 @@ print("Form compilation...")
 
 # Bilinear form
 jit_result = ffc_jit(dot(grad(u), grad(v)) * dx,
-                     form_compiler_parameters={"cell_batch_size": 4, "enable_cross_element_gcc_ext": True})
+                     form_compiler_parameters={"cell_batch_size": 4, "enable_cross_cell_gcc_ext": True})
 ufc_form = dolfin.cpp.fem.make_ufc_form(jit_result[0])
 a = dolfin.cpp.fem.Form(ufc_form, [Q._cpp_object, Q._cpp_object])
 
 # Rhs
 f = Expression("2.0", element=Q.ufl_element())
 jit_result = ffc_jit(f*v * dx,
-                     form_compiler_parameters={"cell_batch_size": 4, "enable_cross_element_gcc_ext": True})
+                     form_compiler_parameters={"cell_batch_size": 4, "enable_cross_cell_gcc_ext": True})
 ufc_form = dolfin.cpp.fem.make_ufc_form(jit_result[0])
 L = dolfin.cpp.fem.Form(ufc_form, [Q._cpp_object])
 # Attach rhs expression as coefficient

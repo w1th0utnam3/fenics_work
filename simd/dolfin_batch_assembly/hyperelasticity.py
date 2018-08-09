@@ -69,7 +69,7 @@ def assemble_test(a, L, cell_batch_size: int):
 
     assembler = dolfin.fem.assembling.Assembler([[a]], [L], [],
                                                 form_compiler_parameters={"cell_batch_size": cell_batch_size,
-                                                                          "enable_cross_element_gcc_ext": True,
+                                                                          "enable_cross_cell_gcc_ext": True,
                                                                           "cpp_optimize_flags": cxx_flags})
 
     t = -time.time()

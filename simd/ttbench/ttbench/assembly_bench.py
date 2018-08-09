@@ -55,7 +55,7 @@ def get_ffc_params():
 
     ffc_param_batch_gcc_ext = {
         "cell_batch_size": 4,
-        "enable_cross_element_gcc_ext": True,
+        "enable_cross_cell_gcc_ext": True,
         "cpp_optimize_flags": "-O2 -funroll-loops -ftree-vectorize -march=native -mtune=native"
     }
 
