@@ -23,19 +23,25 @@ def forms():
     vec_el_p1 = ufl.VectorElement("Lagrange", cell, 1)
 
     laplace = ("Laplace P1", mesh, raw_forms.laplace_forms(mesh, el_p1))
-    laplace_p2p1 = ("Laplace P2,P1 coeff", mesh, raw_forms.laplace_coeff_forms(mesh, el_p2, el_p1))
+    laplace_p2p1 = ("Laplace P2, P1 coeff", mesh, raw_forms.laplace_coeff_forms(mesh, el_p2, el_p1))
+    laplace_p2p1_action = ("Laplace P2, P1 coeff, action", mesh, raw_forms.laplace_coeff_action_forms(mesh, el_p2, el_p1))
     hyperelasticity = ("Hyperelasticity", mesh, raw_forms.hyperelasticity_forms(mesh, vec_el_p1))
+    hyperelasticity_action = ("Hyperelasticity, action", mesh, raw_forms.hyperelasticity_action_forms(mesh, vec_el_p1))
 
     return [
-        laplace,
+        # laplace,
         laplace_p2p1,
-        hyperelasticity
+        hyperelasticity,
+        laplace_p2p1_action,
+        hyperelasticity_action
     ]
 
 
 def run_benchmark(a, L, bc, form_compiler_parameters):
+    a = [a] if a else []
+    L = L if L else []
     bcs = [bc] if bc else []
-    assembler = dolfin.fem.assembling.Assembler([[a]], [L], bcs, form_compiler_parameters)
+    assembler = dolfin.fem.assembling.Assembler([a], [L], bcs, form_compiler_parameters)
 
     t = -time.time()
     A, b = assembler.assemble(mat_type=dolfin.cpp.fem.Assembler.BlockType.monolithic)
@@ -61,9 +67,16 @@ def get_ffc_params():
 
     return [
         ("FFC default (reference)", ffc_param_default),
-        ("FFC default with auto vec", ffc_param_default_vec),
+        # ("FFC default with auto vec", ffc_param_default_vec),
         ("FFC cross-cell with auto vec", ffc_param_batch_gcc_ext)
     ]
+
+
+def norm(A, norm_type):
+    if A:
+        return A.norm(norm_type)
+    else:
+        return np.nan
 
 
 def run_assembly_bench():
@@ -106,14 +119,14 @@ def run_assembly_bench():
                 A_ref = A
                 b_ref = b
 
-                A_ref_norm = A_ref.norm(dolfin.cpp.la.Norm.frobenius)
+                A_ref_norm = norm(A_ref, dolfin.cpp.la.Norm.frobenius)
                 b_ref_norm = b_ref.norm(dolfin.cpp.la.Norm.l2)
 
                 print_indent("norm(A)={:.14e}".format(A_ref_norm))
                 print_indent("norm(b)={:.14e}".format(b_ref_norm))
             else:
                 # Compare results with reference values
-                A_norm = A.norm(dolfin.cpp.la.Norm.frobenius)
+                A_norm = norm(A, dolfin.cpp.la.Norm.frobenius)
                 b_norm = b.norm(dolfin.cpp.la.Norm.l2)
 
                 print_indent("norm(A)={:.14e}, ok: {}".format(A_norm, np.isclose(A_norm, A_ref_norm)))
@@ -157,3 +170,5 @@ def run_assembly_bench():
         print_indent("")
 
         indent_level -= 1
+
+        print_indent("-" * 40)
