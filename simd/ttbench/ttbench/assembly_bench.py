@@ -38,10 +38,10 @@ def forms():
 
 
 def run_benchmark(a, L, bc, form_compiler_parameters):
-    a = [a] if a else []
-    L = L if L else []
+    a = [[a]] if a else[[]]
+    L = [L] if L else []
     bcs = [bc] if bc else []
-    assembler = dolfin.fem.assembling.Assembler([a], [L], bcs, form_compiler_parameters)
+    assembler = dolfin.fem.assembling.Assembler(a, L, bcs, form_compiler_parameters)
 
     t = -time.time()
     A, b = assembler.assemble(mat_type=dolfin.cpp.fem.Assembler.BlockType.monolithic)
