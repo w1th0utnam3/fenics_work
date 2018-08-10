@@ -88,6 +88,9 @@ def gen_test_case() -> TestCase:
         ffc_args={"optimize": True, "enable_cross_element_array_conv": True, "enable_cross_element_fuse": True}
     )
 
+    forms = form_data.get_all_forms()
+    #forms = form_data.get_linear_forms()
+
     # Combine all options: benchmark will be cartesian product of compiler_args, run_args and forms
     test_case = TestCase(
         compiler_args=[
@@ -96,14 +99,14 @@ def gen_test_case() -> TestCase:
         ],
         run_args=[
             one_element,
-            #one_element_no_unroll,
-            #four_elements,
+            # one_element_no_unroll,
+            # four_elements,
             four_elements_gcc_exts,
-            #four_elements_gcc_exts_no_unroll,
-            #four_elements_to_scalars,
-            #four_elements_to_scalars_fused
+            # four_elements_gcc_exts_no_unroll,
+            # four_elements_to_scalars,
+            # four_elements_to_scalars_fused
         ],
-        forms=form_data.get_all_forms(),
+        forms=forms,
         reference_case=(0, 0),
         n_repeats=3
     )

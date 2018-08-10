@@ -4,13 +4,6 @@ from typing import List, Tuple
 
 from ttbench.types import FormTestData
 
-W1 = np.linspace(1, 2, num=1, dtype=np.double)[np.newaxis, :]
-W3 = np.linspace(1, 2, num=3, dtype=np.double)[np.newaxis, :]
-W4 = np.linspace(1, 2, num=4, dtype=np.double)[np.newaxis, :]
-W12 = np.linspace(1, 2, num=12, dtype=np.double)[np.newaxis, :]
-W3x12 = np.repeat(W12, 3, axis=0)
-W12x12 = np.repeat(W12, 12, axis=0)
-
 DOF_3x2 = np.asarray([
     [0.0, 0.0],
     [1.0, 0.0],
@@ -25,24 +18,16 @@ DOF_4x3 = np.asarray([
 ], dtype=np.double)
 
 
+def w(i, j):
+    vals = np.linspace(1, 2, num=i, dtype=np.double)[np.newaxis, :]
+    return np.repeat(vals, j, axis=0)
+
+
 def get_form_code(form_name: str) -> Tuple[str, str]:
     import ttbench.forms_ufl
     form_env = inspect.getsource(ttbench.forms_ufl)
     form_expr = "{}()".format(form_name)
     return form_expr, form_env
-
-
-def laplace_p2tet_coefficient_p1tet() -> FormTestData:
-    form_name = "laplace_p2tet_coefficient_p1tet"
-
-    return FormTestData(
-        form_name=form_name,
-        form_code=get_form_code(form_name),
-        element_tensor_size=100,
-        coefficients=W4,
-        coord_dofs=DOF_4x3,
-        n_elems=int(np.floor(110 ** 3 / 4) * 4)
-    )
 
 
 def laplace_p1tri() -> FormTestData:
@@ -52,7 +37,7 @@ def laplace_p1tri() -> FormTestData:
         form_name=form_name,
         form_code=get_form_code(form_name),
         element_tensor_size=9,
-        coefficients=W3,
+        coefficients=w(3, 1),
         coord_dofs=DOF_3x2,
         n_elems=int(np.floor(500 ** 3 / 4) * 4)
     )
@@ -65,7 +50,20 @@ def laplace_p2tet() -> FormTestData:
         form_name=form_name,
         form_code=get_form_code(form_name),
         element_tensor_size=100,
-        coefficients=W4,
+        coefficients=w(4, 1),
+        coord_dofs=DOF_4x3,
+        n_elems=int(np.floor(240 ** 3 / 4) * 4)
+    )
+
+
+def laplace_p2tet_action() -> FormTestData:
+    form_name = "laplace_p2tet_action"
+
+    return FormTestData(
+        form_name=form_name,
+        form_code=get_form_code(form_name),
+        element_tensor_size=10,
+        coefficients=w(1, 10),
         coord_dofs=DOF_4x3,
         n_elems=int(np.floor(240 ** 3 / 4) * 4)
     )
@@ -78,9 +76,35 @@ def biharmonic_p2tet() -> FormTestData:
         form_name=form_name,
         form_code=get_form_code(form_name),
         element_tensor_size=100,
-        coefficients=W4,
+        coefficients=w(1, 1),
         coord_dofs=DOF_4x3,
         n_elems=int(np.floor(240 ** 3 / 4) * 4)
+    )
+
+
+def laplace_p2tet_coefficient_p1tet() -> FormTestData:
+    form_name = "laplace_p2tet_coefficient_p1tet"
+
+    return FormTestData(
+        form_name=form_name,
+        form_code=get_form_code(form_name),
+        element_tensor_size=100,
+        coefficients=w(1, 4),
+        coord_dofs=DOF_4x3,
+        n_elems=int(np.floor(110 ** 3 / 4) * 4)
+    )
+
+
+def laplace_p2tet_coefficient_p1tet_action() -> FormTestData:
+    form_name = "laplace_p2tet_coefficient_p1tet_action"
+
+    return FormTestData(
+        form_name=form_name,
+        form_code=get_form_code(form_name),
+        element_tensor_size=10,
+        coefficients=w(2, 10),
+        coord_dofs=DOF_4x3,
+        n_elems=int(np.floor(110 ** 3 / 4) * 4)
     )
 
 
@@ -91,7 +115,7 @@ def hyperelasticity_energy_p2tet() -> FormTestData:
         form_name=form_name,
         form_code=get_form_code(form_name),
         element_tensor_size=1,
-        coefficients=W3x12,
+        coefficients=w(3, 30),
         coord_dofs=DOF_4x3,
         n_elems=int(np.floor(160 ** 3 / 4) * 4)
     )
@@ -104,7 +128,20 @@ def hyperelasticity_p1tet() -> FormTestData:
         form_name=form_name,
         form_code=get_form_code(form_name),
         element_tensor_size=144,
-        coefficients=W3x12,
+        coefficients=w(5, 12),
+        coord_dofs=DOF_4x3,
+        n_elems=int(np.floor(160 ** 3 / 4) * 4)
+    )
+
+
+def hyperelasticity_action_p1tet() -> FormTestData:
+    form_name = "hyperelasticity_action_p1tet"
+
+    return FormTestData(
+        form_name=form_name,
+        form_code=get_form_code(form_name),
+        element_tensor_size=12,
+        coefficients=w(4, 12),
         coord_dofs=DOF_4x3,
         n_elems=int(np.floor(160 ** 3 / 4) * 4)
     )
@@ -117,7 +154,20 @@ def holzapfel_p1tet() -> FormTestData:
         form_name=form_name,
         form_code=get_form_code(form_name),
         element_tensor_size=144,
-        coefficients=W12x12,
+        coefficients=w(12, 12),
+        coord_dofs=DOF_4x3,
+        n_elems=int(np.floor(70 ** 3 / 4) * 4)
+    )
+
+
+def holzapfel_action_p1tet() -> FormTestData:
+    form_name = "holzapfel_action_p1tet"
+
+    return FormTestData(
+        form_name=form_name,
+        form_code=get_form_code(form_name),
+        element_tensor_size=12,
+        coefficients=w(13, 12),
         coord_dofs=DOF_4x3,
         n_elems=int(np.floor(70 ** 3 / 4) * 4)
     )
@@ -130,7 +180,20 @@ def stokes_p2p1tet() -> FormTestData:
         form_name=form_name,
         form_code=get_form_code(form_name),
         element_tensor_size=1156,
-        coefficients=W1,
+        coefficients=w(1, 1),
+        coord_dofs=DOF_4x3,
+        n_elems=int(np.floor(120 ** 3 / 4) * 4)
+    )
+
+
+def stokes_action_p2p1tet() -> FormTestData:
+    form_name = "stokes_action_p2p1tet"
+
+    return FormTestData(
+        form_name=form_name,
+        form_code=get_form_code(form_name),
+        element_tensor_size=34,
+        coefficients=w(1, 34),
         coord_dofs=DOF_4x3,
         n_elems=int(np.floor(120 ** 3 / 4) * 4)
     )
@@ -143,7 +206,7 @@ def nearly_incompressible_stokes_p2p1tet() -> FormTestData:
         form_name=form_name,
         form_code=get_form_code(form_name),
         element_tensor_size=1156,
-        coefficients=W1,
+        coefficients=w(1, 1),
         coord_dofs=DOF_4x3,
         n_elems=int(np.floor(120 ** 3 / 4) * 4)
     )
@@ -156,7 +219,7 @@ def curlcurl_nedelec3tet() -> FormTestData:
         form_name=form_name,
         form_code=get_form_code(form_name),
         element_tensor_size=2025,
-        coefficients=W1,
+        coefficients=w(1, 1),
         coord_dofs=DOF_4x3,
         n_elems=int(np.floor(30 ** 3 / 4) * 4)
     )
@@ -166,11 +229,41 @@ def get_all_forms() -> List[FormTestData]:
     return [
         laplace_p1tri(),
         laplace_p2tet(),
+        laplace_p2tet_action(),
         laplace_p2tet_coefficient_p1tet(),
+        laplace_p2tet_coefficient_p1tet_action(),
         biharmonic_p2tet(),
         hyperelasticity_p1tet(),
         hyperelasticity_energy_p2tet(),
+        hyperelasticity_action_p1tet(),
+        # holzapfel_p1tet(),
+        # holzapfel_action_p1tet(),
         stokes_p2p1tet(),
+        stokes_action_p2p1tet(),
         nearly_incompressible_stokes_p2p1tet(),
         # curlcurl_nedelec3tet()
+    ]
+
+
+def get_bilinear_forms() -> List[FormTestData]:
+    return [
+        laplace_p1tri(),
+        laplace_p2tet(),
+        laplace_p2tet_coefficient_p1tet(),
+        biharmonic_p2tet(),
+        hyperelasticity_p1tet(),
+        stokes_p2p1tet(),
+        nearly_incompressible_stokes_p2p1tet(),
+        # holzapfel_p1tet(),
+        # curlcurl_nedelec3tet()
+    ]
+
+
+def get_linear_forms() -> List[FormTestData]:
+    return [
+        laplace_p2tet_action(),
+        laplace_p2tet_coefficient_p1tet_action(),
+        hyperelasticity_action_p1tet(),
+        stokes_action_p2p1tet(),
+        # holzapfel_action_p1tet(),
     ]

@@ -12,8 +12,20 @@ def laplace_form(element: FiniteElement, coeff_element: FiniteElement = None) ->
 
 
 def laplace_p2tet_coefficient_p1tet() -> Form:
-    return laplace_form(FiniteElement("Lagrange", tetrahedron, 2),
-                        FiniteElement("Lagrange", tetrahedron, 1))
+    p1 = FiniteElement("Lagrange", tetrahedron, 1)
+    p2 = FiniteElement("Lagrange", tetrahedron, 2)
+    a = laplace_form(p2, p1)
+    return a
+
+
+def laplace_p2tet_coefficient_p1tet_action() -> Form:
+    p1 = FiniteElement("Lagrange", tetrahedron, 1)
+    p2 = FiniteElement("Lagrange", tetrahedron, 2)
+    a = laplace_form(p2, p1)
+
+    u = Coefficient(p2)
+    a = action(a, u)
+    return a
 
 
 def laplace_p1tri() -> Form:
@@ -21,7 +33,18 @@ def laplace_p1tri() -> Form:
 
 
 def laplace_p2tet() -> Form:
-    return laplace_form(FiniteElement("Lagrange", tetrahedron, 2))
+    p2 = FiniteElement("Lagrange", tetrahedron, 2)
+    a = laplace_form(p2)
+    return a
+
+
+def laplace_p2tet_action() -> Form:
+    p2 = FiniteElement("Lagrange", tetrahedron, 2)
+    a = laplace_form(p2)
+
+    u = Coefficient(p2)
+    a = action(a, u)
+    return a
 
 
 def biharmonic_form(element: FiniteElement) -> Form:
@@ -100,6 +123,15 @@ def hyperelasticity_p1tet() -> Form:
     return a
 
 
+def hyperelasticity_action_p1tet() -> Form:
+    element = VectorElement("Lagrange", tetrahedron, 1)
+    E_strain, L, a = hyperelasticity_form(element)
+
+    u = Coefficient(element)
+    a = action(a, u)
+    return a
+
+
 def holzapfel_form(vector: VectorElement, scalar: FiniteElement) -> Form:
     cell = vector.cell()
 
@@ -174,6 +206,18 @@ def holzapfel_p1tet():
     return holzapfel_form(vector, scalar)
 
 
+def holzapfel_action_p1tet():
+    cell = tetrahedron
+    vector = VectorElement("Lagrange", cell, 1)
+    scalar = FiniteElement("Lagrange", cell, 1)
+
+    a = holzapfel_form(vector, scalar)
+
+    u = Coefficient(vector)
+    a = action(a, u)
+    return a
+
+
 def stokes_form(vector: VectorElement, scalar: FiniteElement) -> Form:
     system = vector * scalar
 
@@ -193,6 +237,18 @@ def stokes_p2p1tet() -> Form:
     vector = VectorElement("Lagrange", cell, 2)
     scalar = FiniteElement("Lagrange", cell, 1)
     return stokes_form(vector, scalar)
+
+
+def stokes_action_p2p1tet() -> Form:
+    cell = tetrahedron
+    vector = VectorElement("Lagrange", cell, 2)
+    scalar = FiniteElement("Lagrange", cell, 1)
+
+    a = stokes_form(vector, scalar)
+
+    u = Coefficient(vector * scalar)
+    a = action(a, u)
+    return a
 
 
 def nearly_incompressible_stokes_form(vector: VectorElement, scalar: FiniteElement) -> Form:

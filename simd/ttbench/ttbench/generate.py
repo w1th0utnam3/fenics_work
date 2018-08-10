@@ -85,8 +85,11 @@ def compute_shapes(form: ufl.Form):
         w_element = coefficient.ufl_element()
         w_dim = create_element(w_element).space_dimension()
         ws_shapes.append((w_dim,))
-    max_w_dim = sorted(ws_shapes, key=lambda w_dim: np.prod(w_dim))[-1]
-    w_full_shape = (len(ws_shapes), ) + max_w_dim
+    if len(ws_shapes) > 0:
+        max_w_dim = sorted(ws_shapes, key=lambda w_dim: np.prod(w_dim))[-1]
+        w_full_shape = (len(ws_shapes), ) + max_w_dim
+    else:
+        w_full_shape = (0,)
 
     # Coordinate dofs array
     num_vertices_per_cell = form.ufl_cell().num_vertices()
@@ -105,7 +108,7 @@ def check_shapes(form: ufl.Form, form_def: FormTestData) -> bool:
                            "actual size of element tensor ({})!"
                            "".format(form_def.form_name, form_def.element_tensor_size, np.prod(A_shape)))
 
-    if np.prod(form_def.coefficients.shape) != np.prod(w_full_shape):
+    if np.prod(w_full_shape) != 0 and np.prod(form_def.coefficients.shape) != np.prod(w_full_shape):
         raise RuntimeError("Coefficient array size of form '{}' defined in form_data ({}->{}) "
                            "does not correspond to actual size of the coefficient array ({}->{})!"
                            "".format(form_def.form_name, form_def.coefficients.shape,
